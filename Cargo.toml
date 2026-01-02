@@ -1,11 +1,34 @@
 [workspace]
-members = ["native/smtc-for-splayer", "native/discord-rpc-for-splayer"]
+members  = ["crates/*"]
+resolver = "2"
 
-resolver = "3"
+    [workspace.package]
+    authors    = ["magic-akari <akari.ccino@gmail.com>"]
+    edition    = "2021"
+    homepage   = "https://github.com/magic-akari/ncmc"
+    license    = "MIT"
+    readme     = "README.md"
+    repository = "https://github.com/magic-akari/ncmc"
+    version    = "0.2.11"
+
+    [workspace.dependencies]
+    ncm_core = { version = "0.2.11", path = "crates/ncm_core" }
+    ncm_meta = { version = "0.2.11", path = "crates/ncm_meta" }
+
+    aes                = "0.8.4"
+    anyhow             = "1.0.89"
+    base64             = "0.22.1"
+    bpaf               = "0.9"
+    ecb                = "0.1.2"
+    id3                = "1.14.0"
+    js-sys             = "0.3.70"
+    metaflac           = "0.2.7"
+    miniserde          = "0.1"
+    serde-wasm-bindgen = "0.6"
+    testing            = "0.42.0"
+    wasm-bindgen       = "0.2.93"
 
 [profile.release]
-opt-level = 3
-debug = false
-lto = true
-codegen-units = 1
+lto   = true
 panic = "abort"
+strip = "debuginfo"
