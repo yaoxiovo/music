@@ -1,30 +1,41 @@
 <script setup lang="ts">
-import { playlistDetail, playlistTrackAll } from '@/api'
-import { usePlayActions } from '@/composables/usePlayActions'
+import { playlistDetail, playlistTrackAll, commentNew } from '@/api'
+import { useAudio } from '@/composables/useAudio'
 import LazyImage from '@/components/Ui/LazyImage.vue'
-import PlaylistCommentsPopup from '@/components/Mobile/PlaylistCommentsPopup.vue'
-import Button from '@/components/Ui/Button.vue'
 import { useI18n } from 'vue-i18n'
-import { formatCount } from '@/utils/time'
-import {
-  transformPlaylistDetail,
-  transformSongs,
-  type SongData,
-} from '@/utils/transformers'
-
 const { t } = useI18n()
 
 type PlaylistInfo = {
   name: string
   description: string
   creator: string
-  creatorAvatar: string
   createTime: string
   songCount: number
-  playCount: number | string
-  likes: number | string
+  likes: string
   category: string
   coverImgUrl: string
+  gradient: string
+}
+
+type PlaylistSong = {
+  id: number | string
+  name: string
+  artist: string
+  album: string
+  albumId: number | string
+  duration: number
+  emoji: string
+  gradient: string
+  liked: boolean
+  cover: string
+}
+
+type CommentItem = {
+  username: string
+  avatarUrl: string
+  time: string
+  content: string
+  likes: number
 }
 
 const route = useRoute()
@@ -32,55 +43,89 @@ const playlistId = computed(() => Number(route.params.id))
 
 const state = reactive({
   info: {} as PlaylistInfo,
-  songs: [] as SongData[],
+  songs: [] as PlaylistSong[],
+  comments: [] as CommentItem[],
   loading: true,
   collected: false,
-  showFullDesc: false,
-  showComments: false,
 })
 
-const { playAll: playAllAction, shufflePlay: shufflePlayAction } = usePlayActions()
+const { setPlaylist, play } = useAudio()
+
+const gradients = ['from-purple-500 to-pink-500']
+const emojis = ['🎵', '🎶', '♪', '♫', '🎼']
+
+const pickGradient = () => gradients[Math.floor(Math.random() * gradients.length)]
 
 const load = async (id: number) => {
   try {
-    const [detailRes, tracksRes] = await Promise.all([
+    const [detailRes, tracksRes, commentsRes] = await Promise.all([
       playlistDetail({ id }),
       playlistTrackAll({ id, limit: 100 }),
+      commentNew({ id, type: 2, sortType: 1, pageNo: 1, pageSize: 5 }),
     ])
-
-    const detail = transformPlaylistDetail(
-      detailRes as Record<string, unknown>,
-      t('home.playlistFallback')
-    )
+    const detail =
+      (detailRes as any)?.playlist || (detailRes as any)?.data?.playlist || (detailRes as any)?.data
     if (detail) {
       state.info = {
-        ...detail,
-        playCount: formatCount(detail.playCount as number),
-        likes: formatCount(detail.likes as number),
+        name: detail?.name || '',
+        description: detail?.description || '',
+        creator: detail?.creator?.nickname || '',
+        createTime: detail?.createTime ? new Date(detail.createTime).toLocaleDateString() : '',
+        songCount: detail?.trackCount || 0,
+        likes: String(detail?.subscribedCount || detail?.bookedCount || 0),
+        category: detail?.tags?.[0] || t('home.playlistFallback'),
+        coverImgUrl: detail?.coverImgUrl || '',
+        gradient: pickGradient(),
       }
     }
-
-    state.songs = transformSongs(tracksRes as Record<string, unknown>)
+    const tracks =
+      (tracksRes as any)?.songs || (tracksRes as any)?.data?.songs || (tracksRes as any)?.data || []
+    if (Array.isArray(tracks)) {
+      state.songs = tracks.map((t: any, i: number) => ({
+        id: t?.id || 0,
+        name: t?.name || '',
+        artist: Array.isArray(t?.ar)
+          ? t.ar.map((a: any) => a.name).join(' / ')
+          : Array.isArray(t?.artists)
+            ? t.artists.map((a: any) => a.name).join(' / ')
+            : '',
+        album: t?.al?.name || t?.album?.name || '',
+        albumId: t?.al?.id || t?.album?.id || 0,
+        duration: t?.dt ?? t?.duration ?? 0,
+        emoji: emojis[i % emojis.length],
+        gradient: gradients[i % gradients.length],
+        liked: false,
+        cover: t?.al?.picUrl || t?.album?.picUrl || '',
+      }))
+    }
+    const list = (commentsRes as any)?.data?.comments || (commentsRes as any)?.comments || []
+    if (Array.isArray(list)) {
+      state.comments = list.slice(0, 5).map((c: any) => ({
+        username: c?.user?.nickname || t('comments.user'),
+        avatarUrl: c?.user?.avatarUrl || '',
+        time: c?.time ? new Date(c.time).toLocaleString() : '',
+        content: c?.content || '',
+        likes: c?.likedCount || 0,
+      }))
+    }
   } finally {
     state.loading = false
   }
 }
 
-watch(
-  playlistId,
-  idNum => {
-    if (!Number.isNaN(idNum) && idNum > 0) {
-      state.loading = true
-      state.showFullDesc = false
-      load(idNum)
-    }
-  },
-  { immediate: true }
-)
+onMounted(() => {
+  const idNum = playlistId.value
+  if (!Number.isNaN(idNum) && idNum > 0) {
+    state.loading = true
+    load(idNum)
+  }
+})
 
-const playAll = () => playAllAction(state.songs)
-
-const shufflePlay = () => shufflePlayAction(state.songs)
+const playAll = () => {
+  if (!state.songs.length) return
+  setPlaylist(state.songs, 0)
+  play(state.songs[0], 0)
+}
 
 const toggleCollect = () => {
   state.collected = !state.collected
@@ -88,231 +133,89 @@ const toggleCollect = () => {
 </script>
 
 <template>
-  <div class="playlist-page flex flex-1 flex-col overflow-hidden">
-    <div v-if="state.loading" class="flex-1 overflow-auto px-4 py-6">
+  <div class="flex-1 overflow-auto px-3 pb-6">
+    <div v-if="state.loading" class="py-6">
       <PageSkeleton :sections="['hero', 'list']" :list-count="8" />
     </div>
     <template v-else>
-      <div class="header-section relative">
-        <div class="header-bg absolute inset-0 overflow-hidden">
+      <section class="mb-4">
+        <div class="relative overflow-hidden rounded-2xl">
           <LazyImage
             v-if="state.info.coverImgUrl"
-            :src="state.info.coverImgUrl + '?param=400y400'"
-            :alt="$t('components.songList.coverAlt')"
-            imgClass="h-full w-full object-cover scale-110"
+            :src="state.info.coverImgUrl"
+            alt="cover"
+            imgClass="h-36 w-full object-cover"
           />
-          <div class="header-overlay absolute inset-0"></div>
-        </div>
-
-        <div class="header-content relative z-10 px-4 pt-4 pb-6">
-          <div class="flex gap-4">
-            <div class="cover-wrapper relative shrink-0">
-              <LazyImage
-                v-if="state.info.coverImgUrl"
-                :src="state.info.coverImgUrl + '?param=300y300'"
-                :alt="$t('components.songList.coverAlt')"
-                imgClass="cover-image h-32 w-32 rounded-2xl object-cover"
-              />
-              <div
-                class="play-count-badge absolute -right-1 -bottom-1 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-accent"
-              >
-                <span class="icon-[mdi--play] h-3 w-3"></span>
-                {{ state.info.playCount }}
-              </div>
-            </div>
-
-            <div class="flex min-w-0 flex-1 flex-col justify-between py-1">
-              <div>
-                <h1 class="mb-2 line-clamp-2 text-lg leading-tight font-bold text-accent">
-                  {{ state.info.name }}
-                </h1>
-                <div class="creator-info flex items-center gap-2">
-                  <img
-                    v-if="state.info.creatorAvatar"
-                    :src="state.info.creatorAvatar + '?param=50y50'"
-                    alt=""
-                    class="h-5 w-5 rounded-full"
-                  />
-                  <span class="text-xs text-accent/70">{{ state.info.creator }}</span>
-                </div>
-              </div>
-              <div class="mt-2 flex items-center gap-3 text-[11px] text-accent/60">
-                <span class="flex items-center gap-1">
-                  <span class="icon-[mdi--music-note] h-3.5 w-3.5"></span>
-                  {{ $t('commonUnits.songsShort', state.info.songCount) }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <span class="icon-[mdi--heart] h-3.5 w-3.5"></span>
-                  {{ state.info.likes }}
-                </span>
-              </div>
-            </div>
-          </div>
-
           <div
-            v-if="state.info.description"
-            class="desc-section mt-4"
-            @click="state.showFullDesc = !state.showFullDesc"
-          >
-            <p
-              class="text-xs leading-relaxed text-accent/60"
-              :class="state.showFullDesc ? '' : 'line-clamp-2'"
-            >
-              {{ state.info.description }}
-            </p>
-            <span class="mt-1 inline-flex items-center text-[10px] text-accent/60">
-              {{ state.showFullDesc ? $t('common.collapse') : $t('common.expand') }}
+            class="absolute inset-0 bg-linear-to-br opacity-40"
+            :class="state.info.gradient"
+          ></div>
+          <div class="relative z-10 p-4">
+            <div class="mb-2">
               <span
-                :class="state.showFullDesc ? 'icon-[mdi--chevron-up]' : 'icon-[mdi--chevron-down]'"
-                class="h-3 w-3"
-              ></span>
-            </span>
+                class="glass-button inline-block px-2 py-1 text-[11px] text-primary"
+                >{{ state.info.category }}</span
+              >
+            </div>
+            <h1 class="mb-1 truncate text-xl font-bold text-primary">{{ state.info.name }}</h1>
+            <p class="line-clamp-2 text-xs text-primary/80">{{ state.info.description }}</p>
+            <div class="mt-3 flex items-center gap-3 text-[12px] text-primary/70">
+              <span class="flex items-center gap-1"
+                ><span class="icon-[mdi--account-circle] h-4 w-4"></span
+                >{{ state.info.creator }}</span
+              >
+              <span class="flex items-center gap-1"
+                ><span class="icon-[mdi--music-note] h-4 w-4"></span
+                >{{ t('commonUnits.songsShort', { count: state.info.songCount }) }}</span
+              >
+              <span class="flex items-center gap-1"
+                ><span class="icon-[mdi--heart] h-4 w-4 text-primary/70"></span
+                >{{ state.info.likes }}</span
+              >
+            </div>
+            <div class="mt-3 flex items-center gap-2">
+              <button
+                class="glass-button px-4 py-2 text-sm text-primary"
+                @click="playAll"
+              >
+                <span class="icon-[mdi--play] mr-1 h-4 w-4"></span>{{ t('actions.playAll') }}
+              </button>
+              <button
+                class="glass-button px-3 py-2 text-sm text-primary"
+                @click="toggleCollect"
+              >
+                <span class="icon-[mdi--heart-outline] mr-1 h-4 w-4"></span
+                >{{ state.collected ? t('playlist.collected') : t('playlist.collect') }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="action-bar flex items-center gap-3 px-4 py-3">
-        <Button
-          variant="gradient"
-          size="md"
-          rounded="full"
-          class="play-all-btn flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium"
-          icon="icon-[mdi--play-circle]"
-          icon-class="h-5 w-5"
-          @click="playAll"
-        >
-          {{ t('actions.playAll') }}
-        </Button>
-        <Button
-          variant="glass"
-          size="md"
-          rounded="full"
-          class="shuffle-btn flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium"
-          icon="icon-[mdi--shuffle-variant]"
-          icon-class="h-5 w-5"
-          @click="shufflePlay"
-        >
-          {{ t('actions.shufflePlay') }}
-        </Button>
-        <Button
-          variant="glass"
-          size="icon-lg"
-          rounded="full"
-          class="collect-btn"
-          :class="state.collected ? 'collected' : ''"
-          :icon="state.collected ? 'icon-[mdi--heart]' : 'icon-[mdi--heart-outline]'"
-          icon-class="h-5 w-5"
-          @click="toggleCollect"
-        />
-        <Button
-          variant="glass"
-          size="icon-lg"
-          rounded="full"
-          class="comment-btn"
-          icon="icon-[mdi--message-processing-outline]"
-          icon-class="h-5 w-5"
-          @click="state.showComments = true"
-        />
-        <PlaylistCommentsPopup
-          v-model:show="state.showComments"
-          :id="playlistId"
-          type="playlist"
-        />
-      </div>
+      <section>
+        <HotSongsMobile :songs="state.songs" />
+      </section>
 
-      <div class="flex-1 overflow-auto px-4 pb-6">
-        <section>
-          <MobileSongList :songs="state.songs" :show-index="true" />
-        </section>
-      </div>
+      <section v-if="state.comments.length" class="mt-6">
+        <h3 class="mb-3 text-sm font-semibold text-primary">{{ t('playlist.featuredComments') }}</h3>
+        <div class="space-y-3">
+          <div v-for="(c, i) in state.comments" :key="i" class="glass-card p-3">
+            <div class="flex items-start gap-3">
+              <img :src="c.avatarUrl" alt="" class="h-8 w-8 rounded-full" />
+              <div class="min-w-0 flex-1">
+                <div class="mb-1 flex items-center gap-2">
+                  <span class="text-sm font-medium text-primary">{{ c.username }}</span>
+                  <span class="text-[11px] text-primary/60">{{ c.time }}</span>
+                </div>
+                <p class="text-sm text-primary/80">{{ c.content }}</p>
+              </div>
+              <div class="flex items-center gap-1 text-[11px] text-primary/70">
+                <span class="icon-[mdi--thumb-up-outline] h-4 w-4"></span>{{ c.likes }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </template>
   </div>
 </template>
-
-<style scoped>
-.header-bg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
-}
-
-.header-overlay {
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.3) 0%,
-    rgba(0, 0, 0, 0.5) 50%,
-    var(--glass-bg-solid) 100%
-  );
-}
-
-.cover-wrapper {
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
-}
-
-.cover-image {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.play-count-badge {
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4));
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.play-all-btn {
-  background: linear-gradient(135deg, #ec4899, #8b5cf6);
-  box-shadow: 0 4px 16px rgba(236, 72, 153, 0.35);
-  transition: all 0.3s ease;
-}
-
-.play-all-btn:active {
-  transform: scale(0.97);
-  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.3);
-}
-
-.shuffle-btn {
-  background: var(--glass-card-bg);
-  color: var(--glass-text-primary);
-  border: 1px solid var(--glass-border-default);
-  transition: all 0.3s ease;
-}
-
-.shuffle-btn:active {
-  transform: scale(0.97);
-  background: var(--glass-interactive-hover-muted);
-}
-
-.collect-btn {
-  background: var(--glass-card-bg);
-  color: var(--glass-text-primary);
-  border: 1px solid var(--glass-border-default);
-  transition: all 0.3s ease;
-}
-
-.collect-btn:active {
-  transform: scale(0.95);
-}
-
-.collect-btn.collected {
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(139, 92, 246, 0.2));
-  border-color: rgba(236, 72, 153, 0.3);
-  color: #ec4899;
-}
-
-.comment-btn {
-  background: var(--glass-card-bg);
-  color: var(--glass-text-primary);
-  border: 1px solid var(--glass-border-default);
-  transition: all 0.3s ease;
-}
-
-.comment-btn:active {
-  transform: scale(0.95);
-}
-
-.desc-section {
-  cursor: pointer;
-}
-</style>

@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useSettingsStore } from '@/stores/modules/settings'
-import { useI18n } from 'vue-i18n'
 
 const settings = useSettingsStore()
-const { t } = useI18n()
 
 const state = reactive({
   // 颜色1（HEX）
@@ -123,91 +121,91 @@ const previewStyle = computed(() => {
 
 <template>
   <div class="glass-card p-4">
-    <h3 class="mb-4 text-lg font-semibold text-primary">{{ t('components.background.colorBends.title') }}</h3>
+    <h3 class="mb-4 text-lg font-semibold text-white">ColorBends 设置</h3>
 
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div class="space-y-6">
         <div>
-          <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.common.colors3') }}</label>
+          <label class="mb-2 block text-sm text-white/80">颜色（前三个生效）</label>
           <div class="grid grid-cols-3 gap-3">
             <div class="space-y-2">
               <input v-model="color1" type="color" class="h-9 w-full rounded" />
-              <input v-model="color1" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color1" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="color2" type="color" class="h-9 w-full rounded" />
-              <input v-model="color2" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color2" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="color3" type="color" class="h-9 w-full rounded" />
-              <input v-model="color3" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color3" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
           </div>
         </div>
 
         <div>
-          <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.common.params') }}</label>
+          <label class="mb-2 block text-sm text-white/80">参数</label>
           <div class="space-y-3">
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.rotation') }}</span>
+              <span class="w-24 text-xs text-white/70">旋转</span>
               <input v-model.number="rotation" type="range" min="0" max="360" step="1" class="flex-1" />
-              <input v-model.number="rotation" type="number" min="0" max="360" step="1" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="rotation" type="number" min="0" max="360" step="1" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.speed') }}</span>
+              <span class="w-24 text-xs text-white/70">速度</span>
               <input v-model.number="speed" type="range" min="0.05" max="3" step="0.05" class="flex-1" />
-              <input v-model.number="speed" type="number" min="0.05" max="3" step="0.05" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="speed" type="number" min="0.05" max="3" step="0.05" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.scale') }}</span>
+              <span class="w-24 text-xs text-white/70">缩放</span>
               <input v-model.number="scale" type="range" min="0.5" max="3" step="0.1" class="flex-1" />
-              <input v-model.number="scale" type="number" min="0.5" max="3" step="0.1" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="scale" type="number" min="0.5" max="3" step="0.1" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.frequency') }}</span>
+              <span class="w-24 text-xs text-white/70">频率</span>
               <input v-model.number="frequency" type="range" min="0.5" max="3" step="0.1" class="flex-1" />
-              <input v-model.number="frequency" type="number" min="0.5" max="3" step="0.1" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="frequency" type="number" min="0.5" max="3" step="0.1" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.warpStrength') }}</span>
+              <span class="w-24 text-xs text-white/70">扭曲</span>
               <input v-model.number="warpStrength" type="range" min="0" max="3" step="0.1" class="flex-1" />
-              <input v-model.number="warpStrength" type="number" min="0" max="3" step="0.1" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="warpStrength" type="number" min="0" max="3" step="0.1" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.mouseInfluence') }}</span>
+              <span class="w-24 text-xs text-white/70">鼠标影响</span>
               <input v-model.number="mouseInfluence" type="range" min="0" max="2" step="0.1" class="flex-1" />
-              <input v-model.number="mouseInfluence" type="number" min="0" max="2" step="0.1" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="mouseInfluence" type="number" min="0" max="2" step="0.1" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.parallax') }}</span>
+              <span class="w-24 text-xs text-white/70">视差</span>
               <input v-model.number="parallax" type="range" min="0" max="2" step="0.1" class="flex-1" />
-              <input v-model.number="parallax" type="number" min="0" max="2" step="0.1" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="parallax" type="number" min="0" max="2" step="0.1" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.colorBends.noise') }}</span>
+              <span class="w-24 text-xs text-white/70">噪声</span>
               <input v-model.number="noise" type="range" min="0" max="0.5" step="0.01" class="flex-1" />
-              <input v-model.number="noise" type="number" min="0" max="0.5" step="0.01" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <input v-model.number="noise" type="number" min="0" max="0.5" step="0.01" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center justify-between">
-              <label for="trans" class="text-xs text-primary/70">{{ t('components.background.colorBends.transparent') }}</label>
+              <label for="trans" class="text-xs text-white/70">透明叠加</label>
               <input id="trans" v-model="transparent" type="checkbox" class="h-4 w-4" />
             </div>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
-          <p class="text-xs text-primary/60">{{ t('components.background.colorBends.tip') }}</p>
-          <button class="rounded bg-white/10 px-3 py-2 text-primary hover:bg-white/20" @click="reset">{{ t('components.background.common.reset') }}</button>
+          <p class="text-xs text-white/60">参数独立，切换背景互不影响。右侧为预览。</p>
+          <button class="rounded bg-white/10 px-3 py-2 text-white hover:bg-white/20" @click="reset">重置默认</button>
         </div>
       </div>
 
       <div>
-        <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.common.preview') }}</label>
+        <label class="mb-2 block text-sm text-white/80">预览</label>
         <div class="relative overflow-hidden rounded-lg border border-white/10 bg-black/20">
           <div class="aspect-video w-full cb-preview" :style="previewStyle"></div>
-          <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-black/30 px-3 py-2 text-xs text-primary/80">
+          <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-black/30 px-3 py-2 text-xs text-white/80">
             <span>{{ color1 }} · {{ color2 }} · {{ color3 }}</span>
-            <span>{{ t('components.background.colorBends.rotation') }} {{ rotation }} / {{ t('components.background.colorBends.scale') }} {{ scale }} / {{ t('components.background.colorBends.speed') }} {{ speed }}</span>
+            <span>rot {{ rotation }} / scale {{ scale }} / speed {{ speed }}</span>
           </div>
         </div>
       </div>

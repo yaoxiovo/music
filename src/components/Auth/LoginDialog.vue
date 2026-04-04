@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 登录对话框：支持密码登录与二维码登录，成功后写入用户 Store
 import {
   loginCellphone,
   loginEmail,
@@ -9,40 +10,31 @@ import {
 } from '@/api'
 import { useUserStore } from '@/stores/modules/user'
 import { useI18n } from 'vue-i18n'
-import Button from '@/components/Ui/Button.vue'
-import TabGroup, { type Tab } from '@/components/Ui/TabGroup.vue'
 const { t } = useI18n()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'success'): void }>()
 const userStore = useUserStore()
 const visible = ref(true)
 const loginSuccess = ref(false)
 
+// UI 状态
 const state = reactive({
   tab: 'password' as 'password' | 'qr',
   loading: false,
+  // 密码登录（手机号或邮箱）
   phone: '',
   email: '',
   password: '',
-  accountType: 'phone' as 'phone' | 'email',
+  useEmail: false,
+  // 二维码登录
   qrKey: '',
   qrImg: '',
   qrPolling: false,
   qrStatusText: '请使用网易云音乐 App 扫码',
   qrUser: null as null | { avatarUrl: string; nickname: string; message?: string },
 })
-const { tab, loading, phone, email, password, accountType, qrImg, qrStatusText } = toRefs(state)
+const { tab, loading, phone, email, password, useEmail, qrImg, qrStatusText } = toRefs(state)
 
-// Tab configurations
-const loginTabs: readonly Tab<'password' | 'qr'>[] = [
-  { key: 'password', labelKey: 'auth.passwordLogin', icon: 'icon-[mdi--form-textbox-password]' },
-  { key: 'qr', labelKey: 'auth.qrLogin', icon: 'icon-[mdi--qrcode-scan]' },
-]
-
-const accountTypeTabs: readonly Tab<'phone' | 'email'>[] = [
-  { key: 'phone', labelKey: 'auth.phone', icon: 'icon-[mdi--cellphone]' },
-  { key: 'email', labelKey: 'auth.email', icon: 'icon-[mdi--email-outline]' },
-]
-
+// 生成二维码
 const genQr = async () => {
   try {
     state.loading = true
@@ -59,6 +51,7 @@ const genQr = async () => {
   }
 }
 
+// 轮询二维码状态
 let qrTimer: any = null
 const pollQr = () => {
   if (!state.qrKey || state.qrPolling) return
@@ -95,16 +88,13 @@ const pollQr = () => {
   qrTimer = setInterval(tick, 3000)
 }
 
+// 密码登录
 const doPasswordLogin = async () => {
-  if (
-    (!state.accountType && !state.phone) ||
-    (state.accountType === 'email' && !state.email) ||
-    !state.password
-  )
+  if ((!state.useEmail && !state.phone) || (state.useEmail && !state.email) || !state.password)
     return
   try {
     state.loading = true
-    if (state.accountType === 'email') {
+    if (state.useEmail) {
       await loginEmail({ email: state.email, password: state.password })
     } else {
       await loginCellphone({ phone: state.phone, password: state.password })
@@ -117,6 +107,7 @@ const doPasswordLogin = async () => {
   }
 }
 
+// 获取登录状态并写入用户信息
 const fetchLoginStatus = async () => {
   const statusRes: any = await loginStatus()
   const profile = statusRes?.data?.profile || statusRes?.profile || statusRes?.account?.profile
@@ -129,6 +120,8 @@ const fetchLoginStatus = async () => {
     })
   }
 }
+
+onMounted(() => {})
 
 onUnmounted(() => {
   if (qrTimer) clearInterval(qrTimer)
@@ -160,198 +153,182 @@ watch(visible, v => {
   }
 })
 </script>
-
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 flex items-center justify-center">
     <Transition name="mask" appear>
-      <div
-        v-if="visible"
-        class="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        @click="visible = false"
-      />
+      <div v-if="visible" class="absolute inset-0 bg-black/50" @click="visible = false"></div>
     </Transition>
-
     <Transition name="dialog" appear @after-leave="handleAfterLeave">
-      <div v-if="visible" class="relative z-10 w-full max-w-xl">
-        <div class="glass-container-strong overflow-hidden">
-          <Button
-            variant="soft"
-            size="icon-sm"
-            rounded="full"
-            icon="icon-[mdi--close]"
-            icon-class="h-4 w-4"
-            class="absolute top-4 right-4 z-20"
+      <div v-if="visible" class="relative z-10 w-[640px] max-w-[92vw] overflow-hidden rounded-3xl">
+        <div class="absolute inset-0 -z-10 opacity-30 blur-2xl"></div>
+        <div class="glass-container-strong relative rounded-3xl p-8">
+          <button
+            class="glass-button absolute top-6 right-6 flex h-10 w-10 items-center justify-center rounded-full"
             @click="visible = false"
-          />
+          >
+            <span class="icon-[mdi--close] text-primary h-5 w-5"></span>
+          </button>
 
-          <div class="relative p-6 pb-4">
-            <div class="mb-6 flex items-center gap-4">
-              <div
-                class="flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-purple-600 shadow-lg shadow-pink-500/25"
-              >
-                <span class="icon-[mdi--account-circle] h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h2 class="text-primary text-xl font-bold">{{ t('auth.login') }}</h2>
-                <p class="text-primary/50 mt-0.5 text-sm">
-                  {{ t('auth.tip') || '登录以享受完整功能' }}
-                </p>
-              </div>
+          <div class="mb-6 text-center">
+            <div
+              class="bg-hover-glass mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl"
+            >
+              <span class="icon-[mdi--account-circle] text-primary h-7 w-7"></span>
             </div>
-            <!-- 登录方式选择 -->
-            <div class="flex w-full items-center justify-center">
-              <TabGroup
-                :tabs="loginTabs"
-                :model-value="tab"
-                class="justify-center flex-wrap"
-                @click="key => (tab = key)"
-              />
+            <h3 class="text-primary text-xl font-semibold">{{ t('auth.login') }}</h3>
+            <p class="text-dropdown-glass mt-1 text-sm opacity-80">{{ t('auth.tip') || '请选择登录方式以继续' }}</p>
+          </div>
+
+          <div class="mb-6 flex items-center justify-center">
+            <div class="glass-nav inline-flex gap-2 rounded-2xl p-2">
+              <button
+                class="glass-button px-4 py-2 text-sm"
+                :class="
+                  tab === 'password'
+                    ? 'bg-hover-glass text-primary ring-1 ring-pink-300/40'
+                    : 'text-dropdown-glass opacity-80'
+                "
+                @click="tab = 'password'"
+              >
+                {{ t('auth.passwordLogin') || '密码登录' }}
+              </button>
+              <button
+                class="glass-button px-4 py-2 text-sm"
+                :class="
+                  tab === 'qr'
+                    ? 'bg-hover-glass text-primary ring-1 ring-pink-300/40'
+                    : 'text-dropdown-glass opacity-80'
+                "
+                @click="tab = 'qr'"
+              >
+                {{ t('auth.qrLogin') || '二维码登录' }}
+              </button>
             </div>
           </div>
 
           <Transition name="tab-fade" mode="out-in">
-            <div v-if="tab === 'password'" key="pwd" class="px-6 pb-6">
-              <div class="mb-5 flex justify-center">
-                <TabGroup
-                  :tabs="accountTypeTabs"
-                  :model-value="accountType"
-                  size="sm"
-                  class="glass-nav rounded-full"
-                  @click="key => (accountType = key)"
-                />
+            <div v-if="tab === 'password'" key="pwd" class="space-y-4">
+              <div class="flex justify-center">
+                <div class="glass-nav mx-auto flex w-64 gap-2 overflow-hidden rounded-full p-1">
+                  <button
+                    class="glass-button flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm"
+                    :class="
+                      !useEmail
+                        ? 'bg-hover-glass text-primary ring-1 ring-pink-300/40'
+                        : 'text-dropdown-glass opacity-80'
+                    "
+                    @click="useEmail = false"
+                  >
+                    <span class="icon-[mdi--cellphone] h-4 w-4"></span>
+                    <span>{{ t('auth.phone') || '手机号' }}</span>
+                  </button>
+                  <button
+                    class="glass-button flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm"
+                    :class="
+                      useEmail
+                        ? 'bg-hover-glass text-primary ring-1 ring-pink-300/40'
+                        : 'text-dropdown-glass opacity-80'
+                    "
+                    @click="useEmail = true"
+                  >
+                    <span class="icon-[mdi--email] h-4 w-4"></span>
+                    <span>{{ t('auth.email') || '邮箱' }}</span>
+                  </button>
+                </div>
               </div>
 
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <label class="text-primary/60 block text-xs font-medium">
-                    {{
-                      accountType === 'email'
-                        ? t('auth.email') || '邮箱'
-                        : t('auth.phone') || '手机号'
-                    }}
-                  </label>
+              <div class="space-y-3">
+                <label class="text-dropdown-glass block text-xs opacity-80">{{ useEmail ? (t('auth.email') || '邮箱') : (t('auth.phone') || '手机号') }}</label>
+                <template v-if="!useEmail">
                   <div
-                    class="glass-card group flex items-center gap-3 rounded-xl px-4 py-3 transition-all focus-within:ring-2 focus-within:ring-pink-400/50"
+                    class="glass-card flex items-center gap-2 px-4 py-3 ring-0 focus-within:ring-2 focus-within:ring-pink-300/40"
                   >
                     <span
-                      :class="
-                        accountType === 'email'
-                          ? 'icon-[mdi--email-outline]'
-                          : 'icon-[mdi--cellphone]'
-                      "
-                      class="text-primary/40 h-5 w-5 transition-colors group-focus-within:text-pink-400"
-                    />
+                      class="icon-[mdi--cellphone] text-dropdown-glass h-5 w-5 opacity-80"
+                    ></span>
                     <input
-                      v-if="accountType === 'phone'"
                       v-model="phone"
                       type="tel"
                       :placeholder="t('auth.inputPhone') || '请输入手机号'"
-                      class="text-primary w-full bg-transparent text-sm outline-none placeholder:text-white/30"
+                      class="text-primary flex-1 bg-transparent text-sm placeholder-white/40 outline-none"
                     />
+                  </div>
+                </template>
+                <template v-else>
+                  <div
+                    class="glass-card flex items-center gap-2 px-4 py-3 ring-0 focus-within:ring-2 focus-within:ring-pink-300/40"
+                  >
+                    <span class="icon-[mdi--email] text-dropdown-glass h-5 w-5 opacity-80"></span>
                     <input
-                      v-else
                       v-model="email"
                       type="email"
                       :placeholder="t('auth.inputEmail') || '请输入邮箱'"
-                      class="text-primary w-full bg-transparent text-sm outline-none placeholder:text-white/30"
+                      class="text-primary flex-1 bg-transparent text-sm placeholder-white/40 outline-none"
                     />
                   </div>
-                </div>
+                </template>
+              </div>
 
-                <div class="space-y-2">
-                  <label class="text-primary/60 block text-xs font-medium">{{
-                    t('auth.password') || '密码'
-                  }}</label>
-                  <div
-                    class="glass-card group flex items-center gap-3 rounded-xl px-4 py-3 transition-all focus-within:ring-2 focus-within:ring-purple-400/50"
-                  >
-                    <span
-                      class="icon-[mdi--lock-outline] text-primary/40 h-5 w-5 transition-colors group-focus-within:text-purple-400"
-                    />
-                    <input
-                      v-model="password"
-                      type="password"
+              <div class="space-y-3">
+                <label class="text-dropdown-glass block text-xs opacity-80">{{ t('auth.password') || '密码' }}</label>
+                <div
+                  class="glass-card flex items-center gap-2 px-4 py-3 ring-0 focus-within:ring-2 focus-within:ring-purple-300/40"
+                >
+                  <span class="icon-[mdi--lock] text-dropdown-glass h-5 w-5 opacity-80"></span>
+                  <input
+                    v-model="password"
+                    type="password"
                       :placeholder="t('auth.inputPassword') || '请输入密码'"
-                      class="text-primary w-full bg-transparent text-sm outline-none placeholder:text-white/30"
-                    />
-                  </div>
+                    class="text-primary flex-1 bg-transparent text-sm placeholder-white/40 outline-none"
+                  />
                 </div>
               </div>
 
-              <Button
-                variant="solid"
-                size="md"
-                block
-                :loading="loading"
-                :disabled="
-                  loading ||
-                  (accountType === 'phone' && !phone) ||
-                  (accountType === 'email' && !email) ||
-                  !password
-                "
-                icon="icon-[mdi--login]"
-                class="mt-6"
-                @click="doPasswordLogin"
-              >
-                {{ loading ? t('common.loading') || '登录中...' : t('auth.login') }}
-              </Button>
+              <div class="mt-4">
+                <button
+                  class="flex w-full items-center justify-center rounded-2xl bg-linear-to-r from-pink-500 to-purple-600 px-4 py-3 text-sm font-medium text-white shadow-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-pink-500/25 disabled:opacity-60"
+                  :disabled="loading || (!useEmail && !phone) || (useEmail && !email) || !password"
+                  @click="doPasswordLogin"
+                >
+                  {{ t('auth.login') }}
+                </button>
+              </div>
             </div>
 
-            <div v-else key="qr" class="px-6 pb-6">
-              <div class="flex flex-col items-center">
-                <div class="relative mb-4">
-                  <div class="overflow-hidden rounded-2xl bg-white p-3 shadow-xl">
-                    <img
-                      v-if="qrImg"
-                      :src="qrImg"
-                      :alt="t('auth.qr') || '二维码'"
-                      class="h-44 w-44"
-                    />
-                    <div v-else class="flex h-44 w-44 items-center justify-center">
-                      <span class="icon-[mdi--loading] h-8 w-8 animate-spin text-gray-400" />
-                    </div>
-                  </div>
-                  <Transition name="fade">
+            <div v-else key="qr" class="space-y-4">
+              <div class="mx-auto w-80 rounded-lg">
+                <div class="flex flex-col items-center space-y-4 p-6 pt-0">
+                  <div class="relative">
+                    <img v-if="qrImg" :src="qrImg" :alt="t('auth.qr') || '二维码'" class="h-52 w-52" />
+                    <div v-else class="animate-shimmer h-52 w-52 rounded-lg bg-white/10"></div>
                     <div
                       v-if="state.qrUser?.avatarUrl"
-                      class="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/80 backdrop-blur-sm"
+                      class="absolute inset-0 flex items-center justify-center bg-black/70"
                     >
-                      <div class="flex flex-col items-center gap-2">
+                      <span class="relative flex h-20 w-20 shrink-0 overflow-hidden rounded-full">
                         <img
-                          :src="state.qrUser.avatarUrl"
-                          :alt="state.qrUser.nickname"
-                          class="h-16 w-16 rounded-full ring-2 ring-white/20"
+                          v-if="state.qrUser?.avatarUrl"
+                          class="aspect-square h-full w-full"
+                          :alt="state.qrUser?.nickname"
+                          :src="state.qrUser?.avatarUrl"
                         />
-                        <span class="text-primary text-sm font-medium">{{
-                          state.qrUser.nickname
-                        }}</span>
-                      </div>
+                      </span>
                     </div>
-                  </Transition>
-                </div>
-
-                <div class="mb-4 text-center">
-                  <p class="text-primary/80 text-sm">
-                    {{ state.qrUser?.message || qrStatusText || t('common.loading') + '...' }}
+                  </div>
+                  <p class="text-primary text-center text-sm">
+                    {{ state.qrUser?.message || qrStatusText || (t('common.loading') + '...') }}
                   </p>
-                  <p
-                    v-if="state.qrUser?.nickname && !state.qrUser?.message"
-                    class="text-primary mt-1 font-medium"
+                  <div class="text-center" v-if="state.qrUser?.nickname">
+                    <p class="text-primary font-semibold">{{ state.qrUser?.nickname }}</p>
+                  </div>
+                  <button
+                    class="glass-button text-primary hover:bg-hover-glass rounded-xl px-4 py-2 text-sm"
+                    :disabled="loading"
+                    @click="genQr"
                   >
-                    {{ state.qrUser.nickname }}
-                  </p>
+                    {{ t('auth.refreshQr') || '刷新二维码' }}
+                  </button>
                 </div>
-
-                <Button
-                  
-                  size="md"
-                  :loading="loading"
-                  :disabled="loading"
-                  icon="icon-[mdi--refresh]"
-                  @click="genQr"
-                >
-                  {{ t('auth.refreshQr') || '刷新二维码' }}
-                </Button>
               </div>
             </div>
           </Transition>
@@ -364,39 +341,33 @@ watch(visible, v => {
 <style scoped>
 .dialog-enter-active,
 .dialog-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s ease;
 }
 .dialog-enter-from,
 .dialog-leave-to {
   opacity: 0;
-  transform: scale(0.95) translateY(10px);
+  transform: translateY(10px) scale(0.98);
 }
-
 .tab-fade-enter-active,
 .tab-fade-leave-active {
-  transition: all 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 .tab-fade-enter-from,
 .tab-fade-leave-to {
   opacity: 0;
-  transform: translateX(10px);
+  transform: translateY(6px);
 }
 
 .mask-enter-active,
 .mask-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s ease;
 }
 .mask-enter-from,
 .mask-leave-to {
   opacity: 0;
 }
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 </style>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()

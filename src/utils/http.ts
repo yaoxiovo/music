@@ -1,7 +1,3 @@
-/**
- * HTTP 请求封装
- * 基于 axios 封装统一的请求/响应拦截、进度条、GET/POST 方法
- */
 import axios, {
     AxiosInstance,
     AxiosResponse,
@@ -9,14 +5,13 @@ import axios, {
 } from 'axios'
 import NProgress from '@/config/nprogress'
 
-/** 创建 axios 实例 */
 const instance: AxiosInstance = axios.create({
     baseURL: import.meta.env.VITE_APP_BASE_API,
     timeout: 1000000,
     withCredentials: true,
 })
 
-/** 请求拦截器：启动进度条、添加时间戳防缓存 */
+// 请求拦截器
 instance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
         // 开启进度条
@@ -34,7 +29,7 @@ instance.interceptors.request.use(
     (error) => Promise.reject(error)
 )
 
-/** 响应拦截器：结束进度条、直接返回 data */
+// 响应拦截器
 instance.interceptors.response.use(
     (response: AxiosResponse) => {
         const { data } = response
@@ -50,18 +45,18 @@ instance.interceptors.response.use(
     }
 )
 
-/** GET 请求 */
+// 封装get方法
 export const httpGet = <T>(url: string, params?: object): Promise<T> =>
     instance.get(url, { params })
 
-/** POST 请求 */
+// 封装post方法
 export const httpPost = <T>(
     url: string,
     data?: object,
     header?: object
 ): Promise<T> => instance.post(url, data, header)
 
-/** 文件上传（multipart/form-data） */
+// 封装upload方法
 export const httpUpload = <T>(
     url: string,
     formData: FormData,

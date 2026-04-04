@@ -6,14 +6,12 @@ import Footer from './footer.vue'
 import Aurora from '@/components/Background/Aurora.vue'
 import ColorBends from '@/components/Background/ColorBends.vue'
 import Ultimate from '@/components/Background/Ultimate.vue'
-import ShadowBling from '@/components/Background/ShadowBling.vue'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import type { Component } from 'vue'
 import { useSettingsStore } from '@/stores/modules/settings'
 
 const settings = useSettingsStore()
-const { aurora, colorBends, ultimate, shadowBling, backgroundType } = storeToRefs(settings)
+const { aurora, colorBends, ultimate, backgroundType } = storeToRefs(settings)
 
 // 抽屉状态
 const state = reactive({
@@ -34,42 +32,32 @@ const positions = computed(() => {
 
 const openPlayerDrawer = () => {
   state.isDrawerOpen = true
+  console.log('🚀 ~ file: index.vue:30 ~ isDrawerOpen:', state.isDrawerOpen)
 }
-
-type BackgroundType = 'colorbends' | 'ultimate' | 'aurora' | 'shadowBling'
-
-const backgroundComponents: Record<BackgroundType, Component> = {
-  colorbends: ColorBends,
-  ultimate: Ultimate,
-  aurora: Aurora,
-  shadowBling: ShadowBling,
-}
-
-const backgroundPropsMap = computed<Record<BackgroundType, any>>(() => ({
-  colorbends: colorBends.value,
-  ultimate: ultimate.value,
-  aurora: {
-    ...aurora.value,
-    colorPositions: positions.value,
-    colorStops: colorStops.value,
-  },
-  shadowBling: shadowBling.value,
-}))
-
-const currentBackgroundType = computed<BackgroundType>(() => backgroundType.value as BackgroundType)
-
-const currentBackgroundComponent = computed<Component>(
-  () => backgroundComponents[currentBackgroundType.value]
-)
-const currentBackgroundProps = computed(() => backgroundPropsMap.value[currentBackgroundType.value])
 </script>
 
 <template>
   <div class="relative flex h-full w-full overflow-hidden">
-    <div class="custom-theme absolute inset-0 h-full w-full">
+    <div class="absolute inset-0 h-full w-full">
       <component
-        :is="currentBackgroundComponent"
-        v-bind="currentBackgroundProps"
+        :is="
+          backgroundType === 'colorbends'
+            ? ColorBends
+            : backgroundType === 'ultimate'
+              ? Ultimate
+              : Aurora
+        "
+        v-bind="
+          backgroundType === 'colorbends'
+            ? colorBends
+            : backgroundType === 'ultimate'
+              ? ultimate
+              : {
+                  ...aurora,
+                  colorPositions: positions,
+                  colorStops: colorStops,
+                }
+        "
         class="h-full w-full"
       />
     </div>
@@ -81,16 +69,14 @@ const currentBackgroundProps = computed(() => backgroundPropsMap.value[currentBa
         <!-- 头部区域 -->
         <Header />
         <!-- 主内容区域 -->
-        <main class="flex h-full overflow-x-hidden">
+        <main class="flex flex-1 overflow-x-hidden">
           <!-- 左侧边栏 -->
           <Aside />
           <!-- 右侧主内容 -->
           <router-view v-slot="{ Component }">
-            <transition appear name="fade-transform" mode="out-in">
-              <keep-alive>
-                <component :is="Component" />
-              </keep-alive>
-            </transition>
+            <keep-alive>
+              <component :is="Component" />
+            </keep-alive>
           </router-view>
           <!-- 播放器抽屉 -->
           <PlayerDrawer v-model="isDrawerOpen" />
@@ -100,19 +86,3 @@ const currentBackgroundProps = computed(() => backgroundPropsMap.value[currentBa
     </div>
   </div>
 </template>
-<style>
-.fade-transform-enter-active,
-.fade-transform-leave-active {
-  transition: all 0.3s ease;
-}
-
-.fade-transform-enter-from {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-.fade-transform-leave-to {
-  opacity: 0;
-  transform: translateX(20px);
-}
-</style>

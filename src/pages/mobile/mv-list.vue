@@ -2,17 +2,17 @@
 import { mvAll } from '@/api'
 import LazyImage from '@/components/Ui/LazyImage.vue'
 import { useI18n } from 'vue-i18n'
-import { transformMVList, type MVData } from '@/utils/transformers'
 
 const state = reactive({
   loading: true,
-  list: [] as MVData[],
+  list: [] as Array<{ id: number | string; name: string; cover: string; artist: string }>,
 })
 
 const load = async () => {
   try {
     const res = await mvAll({ order: '最新', limit: 20 })
-    state.list = transformMVList(res as Record<string, unknown>, 20)
+    const list = (res as any)?.data || (res as any)?.mvs || (res as any)?.result || []
+    state.list = list.map((m: any) => ({ id: m?.id || m?.vid || 0, name: m?.name || m?.title || '', cover: m?.cover || m?.imgurl || m?.pic || '', artist: m?.artistName || '' }))
   } finally {
     state.loading = false
   }

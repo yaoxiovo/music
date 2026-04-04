@@ -1,264 +1,386 @@
 <script setup lang="ts">
-import { banner, topPlaylist, topSong, topArtists, personalizedMv } from '@/api'
+import { banner, topPlaylist, topSong } from '@/api'
 import { useI18n } from 'vue-i18n'
-import { Swiper, SwiperSlide } from 'swiper/vue'
-import { Navigation, Pagination, Autoplay, EffectCoverflow } from 'swiper/modules'
-import type SwiperClass from 'swiper'
-import 'swiper/css'
-import 'swiper/css/navigation'
-import 'swiper/css/pagination'
-import 'swiper/css/effect-coverflow'
+import { BannerItem, PlaylistItem, SongItem, RecentItem } from '@/api/interface'
 
-import HeroCard from '@/components/Ui/HeroCard.vue'
-import ArtistCard from '@/components/Ui/ArtistCard.vue'
-import MVCard from '@/components/Ui/MVCard.vue'
-import SongCard from '@/components/Ui/SongCard.vue'
-import {
-  transformBanners,
-  transformPlaylists,
-  transformTopSongs,
-  transformArtists,
-  transformMVs,
-  type BannerData,
-  type PlaylistData,
-  type SongData,
-  type ArtistData,
-  type MVData,
-} from '@/utils/transformers'
+interface HomeState {
+  // 轮播图数据
+  banners: BannerItem[]
+  // 当前轮播索引
+  currentBannerIndex: number
+  // 推荐歌单列表
+  recommendPlaylists: PlaylistItem[]
+  // 热门单曲列表
+  hotSongs: SongItem[]
+  // 当前播放索引
+  currentPlayingIndex: number
+  // 最近播放列表
+  recentPlayed: RecentItem[]
+  // 首页加载状态
+  isHomeLoading: boolean
+}
+// 页面响应式状态容器（仅模板使用的变量通过 toRefs 解构）
+const state = reactive<HomeState>({
+  // 轮播图数据
+  banners: [],
+  // 当前轮播索引
+  currentBannerIndex: 0,
+  // 推荐歌单列表
+  recommendPlaylists: [],
+  // 热门单曲列表
+  hotSongs: [],
+  // 当前播放索引
+  currentPlayingIndex: -1,
+  // 最近播放列表
+  recentPlayed: [],
+  // 首页加载状态
+  isHomeLoading: true,
+})
 
 const { t } = useI18n()
 
-const state = reactive({
-  banners: [] as BannerData[],
-  recommendPlaylists: [] as PlaylistData[],
-  hotSongs: [] as SongData[],
-  artists: [] as ArtistData[],
-  mvs: [] as MVData[],
-  isLoading: true,
-  swiper: null as SwiperClass | null,
-})
+// 模板中使用的变量解构为 ref（仅供 template 使用）
+const {
+  banners,
+  currentBannerIndex,
+  recommendPlaylists,
+  hotSongs,
+  currentPlayingIndex,
+  recentPlayed,
+  isHomeLoading,
+} = toRefs(state)
 
-const { banners, recommendPlaylists, hotSongs, artists, mvs, isLoading } = toRefs(state)
+// 推荐歌单横向滚动容器引用与左右按钮状态
+const playlistScrollRef = ref<HTMLElement | null>(null)
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
 
-const loadData = async () => {
-  state.isLoading = true
+const updatePlaylistScrollButtons = () => {
+  const el = playlistScrollRef.value
+  if (!el) return
+  const { scrollLeft, scrollWidth, clientWidth } = el
+  canScrollLeft.value = scrollLeft > 0
+  canScrollRight.value = scrollLeft + clientWidth < scrollWidth - 1
+}
+
+const scrollPlaylist = (dir: 'left' | 'right') => {
+  const el = playlistScrollRef.value
+  if (!el) return
+  const amount = el.clientWidth
+  const next = dir === 'left' ? el.scrollLeft - amount : el.scrollLeft + amount
+  el.scrollTo({ left: next, behavior: 'smooth' })
+  // 延迟更新按钮状态以匹配平滑滚动后的位置
+  setTimeout(updatePlaylistScrollButtons, 300)
+}
+
+const gradients: string[] = [
+  'from-pink-400 to-purple-500',
+  'from-blue-400 to-cyan-500',
+  'from-purple-500 to-pink-500',
+  'from-red-400 to-orange-500',
+  'from-gray-600 to-red-600',
+  'from-yellow-400 to-pink-500',
+]
+const emojis: string[] = ['🎵', '🎶', '♪', '♫', '🎼', '🎤']
+
+const loadHomeData = async () => {
+  state.isHomeLoading = true
   try {
-    const [b, p, s, a, m] = await Promise.all([
+    const [b, p, s] = await Promise.all([
       banner({ type: 0 }),
-      topPlaylist({ order: 'hot', limit: 20 }),
+      topPlaylist({ order: 'hot', limit: 12 }),
       topSong({ type: 0 }),
-      topArtists({ limit: 16 }),
-      personalizedMv(),
     ])
 
-    state.banners = transformBanners(b as Record<string, unknown>, 6)
-    state.recommendPlaylists = transformPlaylists(
-      p as Record<string, unknown>,
-      20,
-      t('home.playlistFallback')
-    )
-    state.hotSongs = transformTopSongs(s as Record<string, unknown>, 12)
-    state.artists = transformArtists(a as Record<string, unknown>, 16)
-    state.mvs = transformMVs(m as Record<string, unknown>, 6)
+    const bannerList: any[] = (b as any)?.data?.banners || (b as any)?.banners || []
+    if (Array.isArray(bannerList) && bannerList.length) {
+      state.banners = bannerList.map(
+        (item: any, i: number): BannerItem => ({
+          title: item?.typeTitle || t('home.bannerTitleDefault'),
+          description: item?.title || t('home.bannerDescDefault'),
+          gradient: gradients[i % gradients.length],
+          coverImgUrl: item?.imageUrl || '',
+          url: item?.url || '',
+        })
+      )
+    }
+
+    const playlists: any[] = (p as any)?.data?.playlists || (p as any)?.playlists || []
+    if (Array.isArray(playlists) && playlists.length) {
+      state.recommendPlaylists = playlists.map(
+        (pl: any, i: number): PlaylistItem => ({
+          id: pl?.id || 0,
+          name: pl?.name || t('home.playlistFallback'),
+          count: pl?.trackCount || 0,
+          emoji: emojis[i % emojis.length],
+          gradient: gradients[i % gradients.length],
+          coverImgUrl: pl?.coverImgUrl || '',
+        })
+      )
+    }
+
+    const songData =
+      (s as any)?.data?.data ||
+      (s as any)?.data?.songs ||
+      (s as any)?.songs ||
+      (s as any)?.data ||
+      []
+    if (Array.isArray(songData) && songData.length) {
+      state.hotSongs = songData.map(
+        (it: any, i: number): SongItem => ({
+          id: (it?.id ?? '') as number | string,
+          name: it?.name,
+          artist: Array.isArray(it?.artists) ? it.artists.map((a: any) => a.name).join(' / ') : '',
+          album: it?.album?.name || '',
+          duration: it?.duration || 0,
+          emoji: emojis[i % emojis.length],
+          gradient: gradients[i % gradients.length],
+          liked: false,
+          cover: it?.album?.picUrl || '',
+        })
+      )
+    }
+  } catch {
   } finally {
-    state.isLoading = false
+    state.isHomeLoading = false
   }
 }
 
-const onSwiper = (sw: SwiperClass) => {
-  state.swiper = sw
-}
-
-const swiperModules = [Navigation, Pagination, Autoplay, EffectCoverflow]
-
 onMounted(() => {
-  loadData()
+  loadHomeData()
+  // 轮播图自动切换
+  setInterval(() => {
+    if (state.banners.length > 0) {
+      state.currentBannerIndex = (state.currentBannerIndex + 1) % state.banners.length
+    }
+  }, 5000)
+  // 初始更新推荐歌单滚动按钮状态
+  nextTick(updatePlaylistScrollButtons)
 })
+
+watch(
+  () => recommendPlaylists.value.length,
+  async () => {
+    await nextTick()
+    updatePlaylistScrollButtons()
+  }
+)
 </script>
-
 <template>
-  <div class="flex-1 overflow-hidden">
-    <div class="custom-scrollbar h-full overflow-y-auto">
-      <HomeSkeleton v-if="isLoading" />
-      <div v-else class="space-y-10 p-5 pb-8">
-        <!-- ═══════ Banner 轮播 ═══════ -->
-        <section v-if="banners.length" v-scroll-in="{ direction: 'up', duration: 0.8 }" class="relative">
-          <Swiper
-            @swiper="onSwiper"
-            :modules="swiperModules"
-            :slides-per-view="1"
-            :space-between="20"
-            :centered-slides="true"
-            :loop="true"
-            :autoplay="{ delay: 5000, disableOnInteraction: false }"
-            :pagination="{ clickable: true, el: '.home-pagination' }"
-            :breakpoints="{
-              640: { slidesPerView: 1.15 },
-              1024: { slidesPerView: 1.4 },
-              1280: { slidesPerView: 1.7 },
-            }"
-            class="overflow-hidden rounded-2xl"
+  <div class="mt-4 flex-1 overflow-hidden">
+    <div class="h-full overflow-auto">
+      <template v-if="isHomeLoading">
+        <HomeSkeleton />
+      </template>
+      <section class="relative mb-8 h-72 overflow-hidden rounded-2xl px-4" v-else>
+        <div class="carousel-container relative h-full">
+          <a
+            :href="banner.url"
+            v-for="(banner, index) in banners"
+            :key="index"
+            target="_blank"
+            class="carousel-slide absolute inset-0 overflow-hidden rounded-2xl transition-all duration-1000 ease-in-out"
+            :class="currentBannerIndex === index ? 'scale-100 opacity-100' : 'scale-105 opacity-0'"
           >
-            <SwiperSlide v-for="(item, idx) in banners" :key="idx">
-              <a
-                :href="item.url"
-                target="_blank"
-                class="group relative block aspect-[1.8/0.4] overflow-hidden rounded-2xl"
-              >
-                <LazyImage
-                  :src="item.coverImgUrl"
-                  alt="banner"
-                  img-class="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-                />
-                <div class="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
-                <div class="absolute right-0 bottom-0 left-0 p-5 lg:p-7">
-                  <span
-                    v-if="item.title"
-                    class="mb-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1 text-[11px] font-medium tracking-wide text-white/90 backdrop-blur-md"
+            <div class="relative h-full w-full overflow-hidden rounded-2xl">
+              <img
+                v-if="banner.coverImgUrl"
+                :src="banner.coverImgUrl"
+                :alt="t('home.bannerAlt')"
+                loading="lazy"
+                class="absolute inset-0 h-full w-full object-cover"
+              />
+              <div
+                class="absolute inset-0 bg-linear-to-br opacity-60"
+                :class="banner.gradient"
+              ></div>
+              <div class="absolute inset-0">
+                <div class="floating-notes">
+                  <div
+                    v-for="i in 6"
+                    :key="i"
+                    class="note"
+                    :style="{ animationDelay: i * 0.5 + 's' }"
                   >
-                    <span class="icon-[mdi--fire] h-3 w-3 text-orange-400" />
-                    {{ item.title }}
-                  </span>
-                  <h3 class="line-clamp-2 text-lg font-bold tracking-tight text-white drop-shadow-lg lg:text-xl">
-                    {{ item.description }}
-                  </h3>
+                    {{ ['🎵', '🎶', '♪', '♫', '🎼', '🎤'][i - 1] }}
+                  </div>
                 </div>
-              </a>
-            </SwiperSlide>
-          </Swiper>
-          <div class="home-pagination mt-4 flex justify-center gap-1.5"></div>
-        </section>
+              </div>
+              <div class="relative z-10 flex h-full items-center overflow-hidden rounded-2xl p-8">
+                <div class="flex-1">
+                  <h2 class="animate-fade-in-up mb-4 text-4xl font-bold text-white drop-shadow-lg">
+                    {{ banner.title }}
+                  </h2>
+                  <p
+                    class="animate-fade-in-up mb-6 text-lg text-white/90 drop-shadow"
+                    style="animation-delay: 0.2s"
+                  >
+                    {{ banner.description }}
+                  </p>
+                  <router-link
+                    to="/mv-list"
+                    class="glass-button animate-fade-in-up inline-flex items-center gap-1 bg-white/20 px-6 py-3 text-white hover:bg-white/30"
+                    style="animation-delay: 0.4s"
+                  >
+                    <span class="icon-[mdi--play] mr-2 h-5 w-5"></span>
+                    {{ t('home.playNow') }}
+                  </router-link>
+                </div>
+                <div class="hidden md:block">
+                  <div class="relative">
+                    <div
+                      class="animate-float h-48 w-48 rounded-full bg-white/10 p-4 backdrop-blur-sm"
+                    >
+                      <div
+                        class="animate-spin-slow flex h-full w-full items-center justify-center rounded-full bg-linear-to-br from-pink-400 to-purple-600 text-6xl"
+                      >
+                        🎧
+                      </div>
+                    </div>
+                    <div class="absolute inset-0">
+                      <div
+                        v-for="i in 8"
+                        :key="i"
+                        class="particle absolute h-2 w-2 rounded-full bg-white/60"
+                        :style="{
+                          top: '50%',
+                          left: '50%',
+                          transform: `rotate(${i * 45}deg) translateX(120px)`,
+                          animationDelay: i * 0.2 + 's',
+                        }"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </a>
+        </div>
+        <div class="absolute bottom-4 left-1/2 flex -translate-x-1/2 space-x-2">
+          <button
+            v-for="(banner, index) in banners"
+            :key="index"
+            @click="currentBannerIndex = index"
+            class="h-2 w-8 rounded-full transition-all duration-300"
+            :class="currentBannerIndex === index ? 'bg-white' : 'bg-white/40'"
+          ></button>
+        </div>
+      </section>
 
-        <!-- ═══════ 推荐歌单 ═══════ -->
-        <section v-if="recommendPlaylists.length" v-scroll-in="{ direction: 'up', delay: 0.1 }">
-          <div class="mb-6 flex items-baseline justify-between">
-            <h2 class="text-primary flex items-center gap-2.5 text-xl font-bold tracking-tight">
-              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-pink-500 to-purple-600">
-                <span class="icon-[mdi--playlist-star] h-5 w-5 text-white"></span>
-              </span>
+      <!-- 主要内容区域 -->
+      <div class="px-4 pb-8">
+        <section class="mb-12">
+          <div class="mb-6 flex items-center justify-between">
+            <h2 class="flex items-center text-2xl font-bold text-white">
+              <span class="icon-[mdi--playlist-music] mr-3 h-6 w-6 text-pink-400"></span>
               {{ t('home.recommendPlaylists') }}
             </h2>
-          </div>
-          <div
-            v-scroll-in="{ stagger: true, staggerDelay: 0.04 }"
-            class="grid grid-cols-3 gap-3.5 sm:grid-cols-5 lg:grid-cols-7 xl:grid-cols-10"
-          >
-            <HeroCard
-              v-for="item in recommendPlaylists"
-              :key="item.id"
-              :id="item.id"
-              :cover-url="item.coverImgUrl"
-              :title="item.name"
-              :play-count="item.playCount"
-              :track-count="item.trackCount"
-              :to="`/playlist/${item.id}`"
-              class="stagger-item"
-            />
-          </div>
-        </section>
-
-        <!-- ═══════ 热门歌手 ═══════ -->
-        <section v-if="artists.length" v-scroll-in="{ direction: 'up', delay: 0.1 }">
-          <div class="mb-6 flex items-baseline justify-between">
-            <h2 class="text-primary flex items-center gap-2.5 text-xl font-bold tracking-tight">
-              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-amber-500 to-orange-600">
-                <span class="icon-[mdi--account-music] h-5 w-5 text-white"></span>
-              </span>
-              {{ t('components.discover.hotArtists') }}
-            </h2>
             <router-link
-              v-magnetic="{ strength: 0.3, distance: 60 }"
-              to="/artists"
-              class="text-primary/40 hover:text-primary/70 flex items-center gap-1 text-[13px] font-medium transition-all duration-200 hover:gap-1.5"
+              to="/playlist/1"
+              class="text-purple-300 transition-colors hover:text-white"
             >
-              {{ t('common.viewAll') }}
-              <span class="icon-[mdi--chevron-right] h-4 w-4" />
+              <span class="icon-[mdi--chevron-right] h-5 w-5"></span>
             </router-link>
           </div>
-          <div
-            v-scroll-in="{ stagger: true, staggerDelay: 0.03 }"
-            class="grid grid-cols-4 gap-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12"
-          >
-            <ArtistCard
-              v-for="artist in artists.slice(0, 12)"
-              :key="artist.id"
-              :id="artist.id"
-              :name="artist.name"
-              :pic-url="artist.picUrl"
-              :to="`/artist/${artist.id}`"
-              class="stagger-item"
-            />
-          </div>
-        </section>
-
-        <!-- ═══════ 热门歌曲 ═══════ -->
-        <section v-if="hotSongs.length" v-scroll-in="{ direction: 'up', delay: 0.1 }">
-          <div class="mb-6 flex items-baseline justify-between">
-            <h2 class="text-primary flex items-center gap-2.5 text-xl font-bold tracking-tight">
-              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-cyan-500 to-blue-600">
-                <span class="icon-[mdi--music-note-plus] h-5 w-5 text-white"></span>
-              </span>
-              {{ t('home.hotSongs') }}
-            </h2>
-            <router-link
-              v-magnetic="{ strength: 0.3, distance: 60 }"
-              to="/charts"
-              class="text-primary/40 hover:text-primary/70 flex items-center gap-1 text-[13px] font-medium transition-all duration-200 hover:gap-1.5"
+          <div class="relative">
+            <button
+              v-show="canScrollLeft"
+              @click="scrollPlaylist('left')"
+              class="glass-button absolute top-1/2 left-2 z-10 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 hover:bg-white/30"
             >
-              {{ t('common.viewAll') }}
-              <span class="icon-[mdi--chevron-right] h-4 w-4" />
-            </router-link>
-          </div>
-          <div class="songs-container overflow-hidden rounded-2xl">
+              <span class="icon-[mdi--chevron-left] h-5 w-5 text-white"></span>
+            </button>
+            <button
+              v-show="canScrollRight"
+              @click="scrollPlaylist('right')"
+              class="glass-button absolute top-1/2 right-2 z-10 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 hover:bg-white/30"
+            >
+              <span class="icon-[mdi--chevron-right] h-5 w-5 text-white"></span>
+            </button>
             <div
-              v-scroll-in="{ stagger: true, staggerDelay: 0.03, distance: 20 }"
-              class="grid md:grid-cols-2"
+              ref="playlistScrollRef"
+              @scroll="updatePlaylistScrollButtons"
+              class="scrollbar-hide flex items-center gap-4 overflow-x-auto"
             >
-              <SongCard
-                v-for="(song, idx) in hotSongs"
-                :key="song.id"
-                :song="song"
-                :index="idx"
-                :to="`/song/${song.id}`"
-                class="stagger-item song-divider"
-              />
+              <router-link
+                v-for="(playlist, index) in recommendPlaylists"
+                :key="index"
+                :to="`/playlist/${playlist.id}`"
+                class="playlist-card group w-64 flex-none cursor-pointer"
+              >
+                <div
+                  class="glass-card h-full p-4 transition-all duration-300 hover:scale-105 hover:shadow-2xl"
+                >
+                  <div class="relative mb-3 w-full overflow-hidden rounded-xl">
+                    <img
+                      :src="playlist.coverImgUrl + '?param=500y500'"
+                      alt="歌单封面"
+                      class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                    />
+                    <div
+                      class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    >
+                      <button class="glass-button flex h-12 w-12 items-center justify-center">
+                        <span class="icon-[mdi--play] h-5 w-5 text-white"></span>
+                      </button>
+                    </div>
+                  </div>
+                  <h3 class="mb-1 truncate text-sm font-medium text-white">{{ playlist.name }}</h3>
+                  <p class="truncate text-xs text-purple-300">{{ t('home.playlistCount', { count: playlist.count }) }}</p>
+                </div>
+              </router-link>
             </div>
           </div>
         </section>
 
-        <!-- ═══════ 推荐MV ═══════ -->
-        <section v-if="mvs.length" v-scroll-in="{ direction: 'up', delay: 0.1 }">
-          <div class="mb-6 flex items-baseline justify-between">
-            <h2 class="text-primary flex items-center gap-2.5 text-xl font-bold tracking-tight">
-              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-rose-500 to-red-600">
-                <span class="icon-[mdi--video] h-5 w-5 text-white"></span>
-              </span>
-              {{ t('components.discover.recommendMv') }}
+        <section class="mb-12">
+          <div class="mb-6 flex items-center justify-between">
+            <h2 class="flex items-center text-2xl font-bold text-white">
+              <span class="icon-[mdi--fire] mr-3 h-6 w-6 text-orange-400"></span>
+              {{ t('home.hotSongs') }}
             </h2>
-            <router-link
-              v-magnetic="{ strength: 0.3, distance: 60 }"
-              to="/mv-list"
-              class="text-primary/40 hover:text-primary/70 flex items-center gap-1 text-[13px] font-medium transition-all duration-200 hover:gap-1.5"
-            >
-              {{ t('common.viewAll') }}
-              <span class="icon-[mdi--chevron-right] h-4 w-4" />
+          </div>
+          <div class="h-[40vh] w-full overflow-hidden">
+            <SongList
+              :songs="hotSongs"
+              :current-playing-index="currentPlayingIndex"
+              :show-header="false"
+              :show-controls="false"
+            />
+          </div>
+        </section>
+
+        <section v-if="recentPlayed.length > 0">
+          <div class="mb-6 flex items-center justify-between">
+            <h2 class="flex items-center text-2xl font-bold text-white">
+              <span class="icon-[mdi--clock-outline] mr-3 h-6 w-6 text-blue-400"></span>
+              {{ t('home.recentPlayed') }}
+            </h2>
+            <router-link to="/mv-list" class="text-purple-300 transition-colors hover:text-white">
+              <span class="icon-[mdi--chevron-right] h-5 w-5"></span>
             </router-link>
           </div>
-          <div
-            v-scroll-in="{ stagger: true, staggerDelay: 0.06 }"
-            class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
-          >
-            <MVCard
-              v-for="mv in mvs"
-              :key="mv.id"
-              :id="mv.id"
-              :name="mv.name"
-              :artist="mv.artist"
-              :cover="mv.cover"
-              :play-count="mv.playCount as number"
-              :to="`/mv-player/${mv.id}`"
-              class="stagger-item"
-            />
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div
+              v-for="(item, index) in recentPlayed"
+              :key="index"
+              class="recent-item glass-card cursor-pointer p-4 transition-all duration-300 hover:scale-105"
+            >
+              <div class="flex items-center space-x-3">
+                <div
+                  class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-2xl"
+                  :class="item.gradient"
+                >
+                  {{ item.emoji }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h3 class="truncate font-medium text-white">{{ item.name }}</h3>
+                  <p class="truncate text-sm text-purple-300">{{ item.artist }}</p>
+                  <p class="text-xs text-purple-400">{{ item.playTime }}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -267,44 +389,127 @@ onMounted(() => {
 </template>
 
 <style scoped>
-@reference "../style/tailwind.css";
-
-/* ── 轮播图分页指示器 ── */
-.home-pagination :deep(.swiper-pagination-bullet) {
-  width: 6px;
-  height: 6px;
-  background: var(--glass-text-primary);
-  opacity: 0.2;
-  border-radius: 9999px;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+/* 动画定义 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.home-pagination :deep(.swiper-pagination-bullet-active) {
-  width: 20px;
-  opacity: 0.6;
-  border-radius: 3px;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
 }
 
-/* ── 歌曲列表容器 ── */
-.songs-container {
-  background: var(--glass-bg-card);
-  border: 1px solid var(--glass-border-subtle);
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* ── 歌曲分隔线 ── */
-.song-divider {
-  border-bottom: 1px solid var(--glass-border-subtle);
+@keyframes noteFloat {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) rotate(360deg);
+    opacity: 0;
+  }
 }
 
-.song-divider:last-child,
-.song-divider:nth-last-child(2):nth-child(odd) {
-  border-bottom: none;
+@keyframes particleOrbit {
+  from {
+    transform: rotate(0deg) translateX(120px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(120px) rotate(-360deg);
+  }
 }
 
-@media (min-width: 768px) {
-  .song-divider:nth-last-child(1),
-  .song-divider:nth-last-child(2):nth-child(odd) {
-    border-bottom: none;
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spinSlow 20s linear infinite;
+}
+
+.floating-notes {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.note {
+  position: absolute;
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.3);
+  animation: noteFloat 8s linear infinite;
+  left: random(100) * 1%;
+}
+
+.note:nth-child(1) {
+  left: 10%;
+  animation-duration: 8s;
+}
+.note:nth-child(2) {
+  left: 20%;
+  animation-duration: 10s;
+}
+.note:nth-child(3) {
+  left: 40%;
+  animation-duration: 7s;
+}
+.note:nth-child(4) {
+  left: 60%;
+  animation-duration: 9s;
+}
+.note:nth-child(5) {
+  left: 80%;
+  animation-duration: 11s;
+}
+.note:nth-child(6) {
+  left: 90%;
+  animation-duration: 6s;
+}
+
+.particle {
+  animation: particleOrbit 4s linear infinite;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .carousel-slide h2 {
+    font-size: 2rem;
+  }
+
+  .carousel-slide p {
+    font-size: 1rem;
   }
 }
 </style>

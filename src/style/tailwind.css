@@ -1,4 +1,8 @@
 @import 'tailwindcss';
-@import './glass.css';
+@import './theme.css';
+@import './preflight.css';
+@import './components.css';
+@import './utilities.css';
 
 @plugin '@iconify/tailwind4';
+@layer theme, base, components, utilities;

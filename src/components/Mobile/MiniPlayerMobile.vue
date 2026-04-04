@@ -3,8 +3,6 @@ import { useAudio } from '@/composables/useAudio'
 import { useLyrics } from '@/composables/useLyrics'
 import { useSettingsStore } from '@/stores/modules/settings'
 import { storeToRefs } from 'pinia'
-import MusicProgress from '@/components/Ui/MusicProgress.vue'
-import Button from '@/components/Ui/Button.vue'
 
 const settingsStore = useSettingsStore()
 
@@ -15,10 +13,19 @@ const {
   isLoading,
   togglePlay,
   next,
+  progress,
   formattedCurrentTime,
   formattedDuration,
+  setProgress,
   currentTime,
 } = useAudio()
+
+const onProgressClick = (event: MouseEvent) => {
+  const el = event.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  const percent = ((event.clientX - rect.left) / rect.width) * 100
+  setProgress(Math.max(0, Math.min(100, percent)))
+}
 
 const { mergedLines, activeTimeline, fetchLyrics } = useLyrics()
 
@@ -99,7 +106,10 @@ onUnmounted(() => {
             >
               {{ mergedLines[lyric.idx]?.ori || '' }}
             </p>
-            <p v-if="footerLyrics.modes.includes('trans')" class="text-primary/70 truncate text-xs">
+            <p
+              v-if="footerLyrics.modes.includes('trans')"
+              class="text-primary/70 truncate text-xs"
+            >
               {{ mergedLines[lyric.idx]?.tran || '' }}
             </p>
             <p v-if="footerLyrics.modes.includes('roma')" class="text-primary/70 truncate text-xs">
@@ -109,28 +119,39 @@ onUnmounted(() => {
         </div>
         <div class="mt-2 flex items-center gap-2">
           <span class="text-primary/60 text-[11px]">{{ formattedCurrentTime }}</span>
-          <MusicProgress class="flex-1" />
+          <div
+            @click="onProgressClick"
+            class="progress-track relative h-1 flex-1 cursor-pointer overflow-hidden rounded-full"
+          >
+            <div class="progress-fill h-full rounded-full" :style="{ width: `${progress}%` }"></div>
+          </div>
           <span class="text-primary/60 text-[11px]">{{ formattedDuration }}</span>
         </div>
       </div>
-      <Button
-        size="icon-lg"
-        rounded="full"
-        :icon="isPlaying ? 'mdi--pause' : 'mdi--play'"
-        :loading="isLoading"
-        icon-class="h-5 w-5"
+      <button
+        class="glass-button flex h-10 w-10 items-center justify-center rounded-full"
         :title="isPlaying ? $t('player.pause') : $t('player.play')"
         @click="togglePlay"
-      />
-      <Button
-        size="icon-lg"
-        rounded="full"
-        icon="icon-[mdi--skip-next]"
-        icon-class="h-5 w-5"
-        class="ml-1"
+      >
+        <span v-if="isLoading" class="icon-[mdi--loading] text-primary h-5 w-5 animate-spin"></span>
+        <span
+          v-else
+          :class="isPlaying ? 'icon-[mdi--pause]' : 'icon-[mdi--play]'"
+          class="text-primary h-5 w-5"
+        ></span>
+      </button>
+      <button
+        class="glass-button ml-1 flex h-10 w-10 items-center justify-center rounded-full"
         :title="$t('playlistBubble.actions.queueNext')"
         @click="next"
-      />
+      >
+        <span class="icon-[mdi--skip-next] text-primary h-5 w-5"></span>
+      </button>
     </div>
   </div>
 </template>
+const settings = useSettingsStore() const { footerLyrics } = storeToRefs(settings) const showOri =
+computed(() => footerLyrics.value.enabled && footerLyrics.value.modes.includes('original')) const
+showTran = computed(() => footerLyrics.value.enabled && footerLyrics.value.modes.includes('trans'))
+const showRoma = computed(() => footerLyrics.value.enabled &&
+footerLyrics.value.modes.includes('roma'))

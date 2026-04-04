@@ -1,57 +1,38 @@
 <script setup lang="ts">
-import { playlistDetail, playlistTrackAll, commentNew, search } from '@/api'
-import { usePlayActions } from '@/composables/usePlayActions'
+import { playlistDetail, playlistTrackAll, commentNew } from '@/api'
+import { useAudio } from '@/composables/useAudio'
+import type { Song as StoreSong } from '@/stores/interface'
 import { PlaylistInfo, PlaylistSong, CommentItem } from '@/typings'
-import LazyImage from '@/components/Ui/LazyImage.vue'
-import Button from '@/components/Ui/Button.vue'
-import TabGroup from '@/components/Ui/TabGroup.vue'
-import { formatCount } from '@/utils/time'
-import { useI18n } from 'vue-i18n'
-import {
-  transformPlaylistDetail,
-  transformSongs,
-  transformSearchPlaylists,
-  type SongData,
-  type PlaylistData,
-} from '@/utils/transformers'
-
 const route = useRoute()
 const playlistId = route.params.id
 
-interface SimilarPlaylist {
-  id: number | string
-  name: string
-  coverImgUrl: string
-  trackCount?: number
-  playCount?: number
-  creator?: { nickname: string }
-}
-
 interface PlaylistState {
-  activeTab: 'songs' | 'comments' | 'similar'
+  activeTab: 'songs' | 'comments'
   playlistInfo: PlaylistInfo
   isCollected: boolean
-  songs: SongData[]
+  songs: PlaylistSong[]
   newComment: string
   comments: CommentItem[]
   isPageLoading: boolean
-  similarPlaylists: SimilarPlaylist[]
 }
 
 const state = reactive<PlaylistState>({
+  // 当前激活的 Tab
   activeTab: 'songs',
+  // 歌单基本信息
   playlistInfo: {} as PlaylistInfo,
+  // 是否已收藏
   isCollected: false,
+  // 歌曲列表
   songs: [],
+  // 新评论内容
   newComment: '',
+  // 评论列表
   comments: [],
   isPageLoading: true,
-  similarPlaylists: [],
 })
-const { activeTab, playlistInfo, songs, newComment, comments, isPageLoading, similarPlaylists } =
-  toRefs(state)
-const { playAll: playAllAction, shufflePlay: shufflePlayAction } = usePlayActions()
-const { t } = useI18n()
+const { activeTab, playlistInfo, songs, newComment, comments, isPageLoading } = toRefs(state)
+const { setPlaylist, play } = useAudio()
 
 const gradients: string[] = ['from-purple-500 to-pink-500']
 const emojis: string[] = ['🎵', '🎶', '♪', '♫', '🎼']
@@ -64,28 +45,45 @@ const loadPlaylist = async (id: number) => {
       playlistDetail({ id }),
       playlistTrackAll({ id, limit: 100 }),
     ])
-
-    const detail = transformPlaylistDetail(detailRes as Record<string, unknown>, t('home.playlistFallback'))
+    const detail =
+      (detailRes as any)?.playlist || (detailRes as any)?.data?.playlist || (detailRes as any)?.data
     if (detail) {
       state.playlistInfo = {
-        name: detail.name,
-        description: detail.description,
-        creator: detail.creator,
-        creatorAvatar: detail.creatorAvatar,
-        createTime: detail.createTime,
-        songCount: detail.songCount,
-        playCount: detail.playCount as number,
-        likes: String(detail.likes),
-        category: detail.category,
+        name: detail?.name || state.playlistInfo.name,
+        description: detail?.description || '',
+        creator: detail?.creator?.nickname || '',
+        createTime: detail?.createTime ? new Date(detail.createTime).toLocaleDateString() : '',
+        songCount: detail?.trackCount || 0,
+        likes: String(detail?.subscribedCount || detail?.bookedCount || 0),
+        category: detail?.tags?.[0] || '歌单',
         emoji: state.playlistInfo.emoji,
         gradient: pickGradient(),
-        coverImgUrl: detail.coverImgUrl,
+        coverImgUrl: detail?.coverImgUrl || '',
       }
     }
 
-    state.songs = transformSongs(tracksRes as Record<string, unknown>, 100)
-  } catch {
-  } finally {
+    const tracks =
+      (tracksRes as any)?.songs || (tracksRes as any)?.data?.songs || (tracksRes as any)?.data || []
+    if (Array.isArray(tracks) && tracks.length) {
+      state.songs = tracks.map((t: any, i: number) => ({
+        id: t?.id || 0,
+        mvId: t?.mv,
+        name: t?.name || '',
+        artist: Array.isArray(t?.ar)
+          ? t.ar.map((a: any) => a.name).join(' / ')
+          : Array.isArray(t?.artists)
+            ? t.artists.map((a: any) => a.name).join(' / ')
+            : '',
+        album: t?.al?.name || t?.album?.name || '',
+        albumId: t?.al?.id || t?.album?.id || 0,
+        duration: t?.dt ?? t?.duration ?? 0,
+        emoji: emojis[i % emojis.length],
+        gradient: gradients[i % gradients.length],
+        liked: false,
+        cover: t?.al?.picUrl || t?.album?.picUrl || '',
+      }))
+    }
+  } catch {} finally {
     state.isPageLoading = false
   }
 }
@@ -96,14 +94,14 @@ const loadComments = async (id: number) => {
     const list = (res as any)?.data?.comments || (res as any)?.comments || []
     if (Array.isArray(list)) {
       state.comments = list.map((c: any, i: number) => ({
-        username: c?.user?.nickname || t('comments.user'),
+        username: c?.user?.nickname || '用户',
         avatarGradient: gradients[i % gradients.length],
         time: c?.time ? new Date(c.time).toLocaleString() : '',
         content: c?.content || '',
         likes: c?.likedCount || 0,
         avatarUrl: c?.user?.avatarUrl || '',
         replies: (c?.beReplied || []).map((r: any) => ({
-          username: r?.user?.nickname || t('comments.user'),
+          username: r?.user?.nickname || '用户',
           avatarUrl: r?.user?.avatarUrl || '',
           avatarGradient: gradients[(i + 1) % gradients.length],
           time: '',
@@ -114,21 +112,6 @@ const loadComments = async (id: number) => {
   } catch {}
 }
 
-const loadSimilarPlaylists = async (name: string) => {
-  try {
-    const res = await search({ keywords: name, type: 1000 })
-    const { playlists } = transformSearchPlaylists(res as Record<string, unknown>, 12)
-    state.similarPlaylists = playlists.map(pl => ({
-      id: pl.id,
-      name: pl.name,
-      coverImgUrl: pl.coverImgUrl,
-      trackCount: pl.trackCount,
-      playCount: pl.playCount,
-    }))
-  } catch {}
-}
-
-// 初始化加载播放列表
 onMounted(() => {
   const idNum = Number(playlistId)
   if (!Number.isNaN(idNum) && idNum > 0) {
@@ -137,53 +120,66 @@ onMounted(() => {
     loadComments(idNum)
   }
 })
+// 处理排序
+const handleSort = () => {
+  console.log('排序歌曲')
+}
 
-// 监听路由参数变化，加载新的播放列表
-watch(
-  () => Number(route.params.id),
-  idNum => {
-    if (!Number.isNaN(idNum) && idNum > 0) {
-      state.isPageLoading = true
-      loadPlaylist(idNum)
-      loadComments(idNum)
-    }
-  }
-)
-
-watch(
-  () => state.playlistInfo.name,
-  name => {
-    if (name) loadSimilarPlaylists(name)
-  }
-)
-
+// 处理筛选
+const handleFilter = () => {
+  console.log('筛选歌曲')
+}
+// 提交评论
 const submitComment = () => {
   if (!state.newComment.trim()) return
+
   const comment = {
-    username: t('common.me'),
-    avatar: t('common.me'),
+    username: '我',
+    avatar: '我',
     avatarGradient: 'from-pink-400 to-purple-500',
-    time: t('common.justNow'),
+    time: '刚刚',
     content: state.newComment,
     likes: 0,
     avatarUrl: '',
     replies: [],
   }
+
   state.comments.unshift(comment)
   state.newComment = ''
 }
 
-const playAll = () => playAllAction(state.songs)
+// 播放全部
+const mapToStoreSong = (s: PlaylistSong): StoreSong => ({
+  id: s.id,
+  name: s.name,
+  artist: s.artist,
+  album: s.album,
+  duration: s.duration,
+  cover: s.cover,
+  emoji: s.emoji,
+  gradient: s.gradient,
+  liked: s.liked,
+})
 
-const shufflePlay = () => shufflePlayAction(state.songs)
+const playAll = async () => {
+  try {
+    if (!Array.isArray(state.songs) || state.songs.length === 0) return
+    const list: StoreSong[] = state.songs.map(mapToStoreSong)
+    console.log('🚀 ~ file: playlist.vue:179 ~ state.songs:', state.songs)
+    setPlaylist(list, 0)
+    play(list[0], 0)
+  } catch {}
+}
 
+// 收藏切换
 const toggleCollect = () => {
   state.isCollected = !state.isCollected
 }
 
+// 分享
 const sharePlaylist = async () => {
   const url = location.origin + location.pathname + `#/playlist/${playlistId}`
-  const title = String((state.playlistInfo as any)?.name || t('home.playlistFallback'))
+  const title = String((state.playlistInfo as any)?.name || '歌单')
   const text = String((state.playlistInfo as any)?.description || '')
   try {
     if (navigator.share) {
@@ -193,420 +189,409 @@ const sharePlaylist = async () => {
     }
   } catch {}
 }
-
-const tabs = [
-  { key: 'songs', labelKey: 'playlist.tabs.songs', icon: 'icon-[mdi--music-note]' },
-  { key: 'comments', labelKey: 'playlist.tabs.comments', icon: 'icon-[mdi--comment-text]' },
-  { key: 'similar', labelKey: 'playlist.tabs.similar', icon: 'icon-[mdi--playlist-music]' },
-] as const
-
-const tabsWithCount = computed(() =>
-  tabs.map(tab => ({
-    ...tab,
-    count:
-      tab.key === 'songs'
-        ? songs.value.length
-        : tab.key === 'comments'
-          ? comments.value.length
-          : similarPlaylists.value.length,
-  }))
-)
 </script>
 
 <template>
-  <div class="w-full p-4 overflow-x-hidden">
-    <PageSkeleton v-if="isPageLoading" :sections="['hero', 'list']" :list-count="12" />
+  <div class="flex flex-1 flex-col overflow-hidden">
+    <PageSkeleton v-if="isPageLoading" :sections="['hero','list']" :list-count="12" />
     <template v-else>
-      <div class="flex flex-col gap-3">
-        <!-- 头部区域 -->
-        <div class="relative">
-          <!-- 背景模糊图片 -->
-          <div class="absolute inset-0 overflow-hidden rounded-3xl">
-            <img
-              :src="playlistInfo.coverImgUrl + '?param=100y100'"
-              class="h-full w-full scale-150 object-cover opacity-30 blur-3xl"
-            />
-            <div
-              class="to-overlay absolute inset-0 bg-linear-to-b from-transparent via-transparent"
-            ></div>
-          </div>
+    <!-- 歌单头部信息 -->
+    <section class="relative mb-8 flex shrink-0 overflow-hidden rounded-tl-3xl rounded-bl-3xl">
+      <!-- 背景模糊效果 -->
+      <div class="absolute inset-0">
+        <div
+          class="h-full w-full scale-110 bg-linear-to-br opacity-30 blur-3xl"
+          :class="playlistInfo.gradient"
+        ></div>
+      </div>
 
-          <!-- 内容区域 -->
-          <div class="relative z-10 overflow-hidden rounded-3xl">
-            <div class="glass-container">
-              <div class="flex flex-col gap-6 p-6 lg:flex-row lg:gap-10">
-                <!-- 封面 -->
-                <div class="group relative mx-auto w-56 shrink-0 lg:mx-0 lg:w-72">
-                  <div
-                    class="aspect-square overflow-hidden rounded-3xl shadow-2xl ring-1 ring-glass"
-                  >
-                    <LazyImage
-                      :src="playlistInfo.coverImgUrl + '?param=400y400'"
-                      :alt="$t('components.songList.coverAlt')"
-                      imgClass="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                      wrapperClass="h-full w-full"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="none"
-                    class="absolute! inset-0 flex items-center justify-center rounded-3xl opacity-0 transition-all duration-300 group-hover:opacity-100"
-                    @click="playAll"
-                  >
-                    <div
-                      class="flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-r from-pink-500 to-purple-600 text-white shadow-2xl transition-transform hover:scale-110"
-                    >
-                      <span class="icon-[mdi--play] h-10 w-10"></span>
-                    </div>
-                  </Button>
-                </div>
-
-                <!-- 信息区域 -->
-                <div class="flex min-w-0 flex-1 flex-col justify-center text-center lg:text-left">
-                  <!-- 标题 -->
-                  <h1
-                    class="text-primary mb-4 line-clamp-2 text-xl leading-tight font-bold lg:text-4xl xl:text-5xl"
-                  >
-                    {{ playlistInfo.name }}
-                  </h1>
-
-                  <!-- 创建者信息 -->
-                  <div class="mb-5 flex items-center justify-center gap-3 lg:justify-start">
-                    <img
-                      v-if="playlistInfo.creatorAvatar"
-                      :src="playlistInfo.creatorAvatar + '?param=80y80'"
-                      class="h-8 w-8 rounded-full ring-2 ring-glass"
-                    />
-                    <span class="text-primary font-medium">{{ playlistInfo.creator }}</span>
-                    <span class="text-primary/40">•</span>
-                    <span class="text-primary/60 text-sm">{{ playlistInfo.createTime }}</span>
-                    <span class="text-primary/40">•</span>
-                    <!-- 分类标签 -->
-                    <span
-                      class="glass-button accent-gradient px-4 py-1.5 text-xs font-medium text-white"
-                    >
-                      {{ playlistInfo.category }}
-                    </span>
-                  </div>
-
-                  <!-- 描述 -->
-                  <p
-                    v-if="playlistInfo.description"
-                    class="text-primary/70 mb-6 line-clamp-2 text-sm leading-relaxed lg:text-base"
-                    :title="playlistInfo.description"
-                  >
-                    {{ playlistInfo.description }}
-                  </p>
-
-                  <!-- 统计信息 -->
-                  <div
-                    class="mb-6 flex flex-wrap items-center justify-center gap-6 lg:justify-start"
-                  >
-                    <div class="flex items-center gap-2">
-                      <span class="icon-[mdi--music-note] text-primary/60 h-5 w-5"></span>
-                      <span class="text-primary font-medium">
-                        {{ $t('commonUnits.songsShort', playlistInfo.songCount) }}
-                      </span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="icon-[mdi--play-circle-outline] text-primary/60 h-5 w-5"></span>
-                      <span class="text-primary font-medium">
-                        {{ formatCount(playlistInfo.playCount || 0) }}
-                        {{ $t('common.stats.plays') }}
-                      </span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="icon-[mdi--heart] h-5 w-5 text-red-400"></span>
-                      <span class="text-primary font-medium">
-                        {{ formatCount(Number(playlistInfo.likes) || 0) }}
-                        {{ $t('common.stats.favorites') }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- 操作按钮 -->
-                  <div class="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                    <Button
-                      variant="solid"
-                      size="md"
-                      rounded="full"
-                      class="px-8 py-3 shadow-lg shadow-pink-500/30 hover:shadow-xl hover:shadow-pink-500/40"
-                      @click="playAll"
-                    >
-                      <span class="icon-[mdi--play] mr-2 h-5 w-5"></span>
-                      {{ $t('actions.playAll') }}
-                    </Button>
-                    <Button
-                      variant="soft"
-                      size="md"
-                      rounded="full"
-                      class="px-6 py-3"
-                      @click="shufflePlay"
-                    >
-                      <span class="icon-[mdi--shuffle] mr-2 h-5 w-5"></span>
-                      {{ $t('actions.shufflePlay') }}
-                    </Button>
-                    <div class="flex items-center gap-3">
-                      <Button
-                        variant="soft"
-                        size="icon-md"
-                        rounded="full"
-                        class="h-11 w-11"
-                        :class="{
-                          'bg-red-500/20 text-red-400 hover:bg-red-500/30': state.isCollected,
-                        }"
-                        @click="toggleCollect"
-                        :title="state.isCollected ? $t('common.uncollect') : $t('common.collect')"
-                      >
-                        <span
-                          :class="
-                            state.isCollected ? 'icon-[mdi--heart]' : 'icon-[mdi--heart-outline]'
-                          "
-                          class="h-5 w-5"
-                        ></span>
-                      </Button>
-                      <Button
-                        variant="soft"
-                        size="icon-md"
-                        rounded="full"
-                        class="h-11 w-11"
-                        @click="sharePlaylist"
-                        :title="$t('common.share')"
-                      >
-                        <span class="icon-[mdi--share-variant] h-5 w-5"></span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <!-- 浮动音符背景 -->
+      <div class="absolute inset-0 overflow-hidden">
+        <div class="floating-notes">
+          <div v-for="i in 8" :key="i" class="note" :style="{ animationDelay: i * 0.8 + 's' }">
+            {{ ['🎵', '🎶', '♪', '♫', '🎼', '🎤', '🎧', '🎸'][i - 1] }}
           </div>
         </div>
+      </div>
 
-        <!-- 主内容区域 -->
-        <!-- Tabs 工具栏 -->
-        <div class="flex items-center justify-between">
-          <TabGroup v-model="activeTab" :tabs="tabsWithCount" class="w-full" size="md" />
-        </div>
-
-        <!-- 歌曲列表 -->
-        <section v-show="activeTab === 'songs'" class="h-full overflow-hidden">
-          <SongList :songs="songs" :show-header="true" />
-        </section>
-
-        <!-- 评论区 -->
-        <section v-show="activeTab === 'comments'" class="animate-fade-in">
-          <div class="glass-card overflow-hidden">
-            <!-- 发表评论 -->
-            <div class="border-b border-glass p-6">
-              <div class="flex gap-4">
-                <div
-                  class="accent-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-semibold text-white shadow-md"
-                >
-                  {{ $t('common.me') }}
-                </div>
-                <div class="flex-1">
-                  <textarea
-                    v-model="newComment"
-                    :placeholder="$t('comments.placeholder')"
-                    class="text-primary glass-card placeholder-glass-50 w-full resize-none rounded-xl border border-glass p-4 text-sm transition-all focus:border-pink-400/50 focus:ring-2 focus:ring-pink-400/20 focus:outline-none"
-                    rows="3"
-                  ></textarea>
-                  <div class="mt-3 flex items-center justify-end">
-                    <Button
-                      variant="gradient"
-                      size="md"
-                      rounded="full"
-                      class="px-6 py-2.5 shadow-lg transition-all hover:shadow-xl"
-                      :disabled="!newComment.trim()"
-                      @click="submitComment"
-                    >
-                      {{ $t('comments.publish') }}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 评论列表 -->
-            <div v-if="comments.length" class="divide-y divide-glass">
+      <div class="relative z-10 p-8">
+        <div
+          class="flex flex-col items-start space-y-6 lg:flex-row lg:items-center lg:space-y-0 lg:space-x-8"
+        >
+          <!-- 歌单封面 -->
+          <div class="shrink-0">
+            <div class="group relative overflow-hidden rounded-3xl">
+              <img class="h-auto w-64 object-cover" :src="playlistInfo.coverImgUrl" alt="" />
+              <!-- 播放按钮覆盖层 -->
               <div
-                v-for="(comment, index) in comments"
-                :key="index"
-                class="hover:bg-hover-glass p-6 transition-colors"
+                class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               >
-                <div class="flex gap-4">
-                  <img
-                    v-if="comment.avatarUrl"
-                    :src="comment.avatarUrl + '?param=100y100'"
-                    class="h-11 w-11 shrink-0 rounded-full ring-2 ring-glass"
-                  />
-                  <div
-                    v-else
-                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-sm font-semibold text-white"
-                    :class="comment.avatarGradient"
+                <button
+                  class="glass-button flex h-20 w-20 items-center justify-center bg-white/20 hover:bg-white/30"
+                >
+                  <span class="icon-[mdi--play] h-8 w-8 text-white"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 歌单信息 -->
+          <div class="min-w-0 flex-1">
+            <div class="mb-2">
+              <span
+                class="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm"
+              >
+                {{ playlistInfo.category }}
+              </span>
+            </div>
+
+            <h1 class="animate-fade-in-up mb-4 text-4xl font-bold text-white lg:text-5xl">
+              {{ playlistInfo.name }}
+            </h1>
+
+            <p
+              class="animate-fade-in-up mb-6 line-clamp-3 text-lg leading-relaxed text-white/80"
+              style="animation-delay: 0.2s"
+              :title="playlistInfo.description"
+            >
+              {{ playlistInfo.description }}
+            </p>
+
+            <!-- 歌单统计信息 -->
+            <div
+              class="animate-fade-in-up mb-6 flex flex-wrap items-center gap-6 text-white/70"
+              style="animation-delay: 0.4s"
+            >
+              <div class="flex items-center space-x-2">
+                <span class="icon-[mdi--account-circle] h-5 w-5"></span>
+                <span>{{ playlistInfo.creator }}</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="icon-[mdi--calendar] h-5 w-5"></span>
+                <span>{{ playlistInfo.createTime }}</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="icon-[mdi--music-note] h-5 w-5"></span>
+                <span>{{ playlistInfo.songCount }}首歌曲</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="icon-[mdi--heart] h-5 w-5 text-red-400"></span>
+                <span>{{ playlistInfo.likes }}</span>
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div
+              class="animate-fade-in-up flex flex-wrap items-center gap-4"
+              style="animation-delay: 0.6s"
+            >
+              <button
+                class="glass-button bg-linear-to-r from-pink-500 to-purple-600 px-8 py-3 font-medium text-white transition-transform hover:scale-105"
+                @click="playAll"
+              >
+                <span class="icon-[mdi--play] mr-2 h-5 w-5"></span>
+                播放全部
+              </button>
+              <button
+                class="glass-button bg-white/10 px-6 py-3 text-white hover:bg-white/20"
+                @click="toggleCollect"
+              >
+                <span class="icon-[mdi--heart-outline] mr-2 h-5 w-5"></span>
+                {{ state.isCollected ? '已收藏' : '收藏' }}
+              </button>
+              <button
+                class="glass-button bg-white/10 px-6 py-3 text-white hover:bg-white/20"
+                @click="sharePlaylist"
+              >
+                <span class="icon-[mdi--share] mr-2 h-5 w-5"></span>
+                分享
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Tab 导航 -->
+    <div class="mb-4 px-8">
+      <div class="flex items-center space-x-8 border-b border-white/10">
+        <button
+          class="tab-button relative px-2 pb-4 text-lg font-medium transition-all duration-300"
+          :class="activeTab === 'songs' ? 'text-white' : 'text-purple-300 hover:text-white'"
+          @click="activeTab = 'songs'"
+        >
+          <span class="icon-[mdi--format-list-numbered] mr-2 h-5 w-5"></span>
+          歌曲列表 ({{ songs.length }})
+          <div
+            v-if="activeTab === 'songs'"
+            class="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-linear-to-r from-pink-500 to-purple-600"
+          ></div>
+        </button>
+        <button
+          class="tab-button relative px-2 pb-4 text-lg font-medium transition-all duration-300"
+          :class="activeTab === 'comments' ? 'text-white' : 'text-purple-300 hover:text-white'"
+          @click="activeTab = 'comments'"
+        >
+          <span class="icon-[mdi--comment-multiple] mr-2 h-5 w-5"></span>
+          评论区 ({{ comments.length }})
+          <div
+            v-if="activeTab === 'comments'"
+            class="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-linear-to-r from-pink-500 to-purple-600"
+          ></div>
+        </button>
+      </div>
+    </div>
+    <!-- 主要内容区域 -->
+    <div class="flex flex-1 flex-col overflow-hidden px-8 pb-8">
+      <!-- 歌曲列表 Tab -->
+      <section v-show="activeTab === 'songs'" class="h-full overflow-hidden">
+        <SongList
+          :songs="songs"
+          :show-header="true"
+          :show-controls="true"
+          @sort="handleSort"
+          @filter="handleFilter"
+        />
+      </section>
+
+      <!-- 评论区 Tab -->
+      <section v-show="activeTab === 'comments'" class="animate-fade-in">
+        <div class="glass-card p-6">
+          <!-- 发表评论 -->
+          <div class="mb-8">
+            <div class="flex items-start space-x-4">
+              <div
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-pink-400 to-purple-500 font-bold text-white"
+              >
+                我
+              </div>
+              <div class="flex-1">
+                <textarea
+                  v-model="newComment"
+                  placeholder="写下你的评论..."
+                  class="w-full resize-none rounded-lg border border-white/20 bg-white/10 p-4 text-white placeholder-purple-300 transition-colors focus:border-pink-400 focus:outline-none"
+                  rows="3"
+                ></textarea>
+                <div class="mt-3 flex items-center justify-between">
+                  <div class="flex items-center space-x-4 text-purple-300">
+                    <button class="transition-colors hover:text-white">
+                      <span class="icon-[mdi--emoticon-outline] h-5 w-5"></span>
+                    </button>
+                    <button class="transition-colors hover:text-white">
+                      <span class="icon-[mdi--image-outline] h-5 w-5"></span>
+                    </button>
+                  </div>
+                  <button
+                    class="glass-button bg-linear-to-r from-pink-500 to-purple-600 px-6 py-2 font-medium text-white disabled:opacity-50"
+                    :disabled="!newComment.trim()"
+                    @click="submitComment"
                   >
-                    {{ comment.username.charAt(0) }}
+                    发表评论
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 评论列表 -->
+          <div class="space-y-6">
+            <div v-for="(comment, index) in comments" :key="index" class="comment-item">
+              <div class="flex items-start space-x-4">
+                <!-- 用户头像 -->
+                <img :src="comment.avatarUrl" alt="" class="h-10 w-10 rounded-full" />
+
+                <!-- 评论内容 -->
+                <div class="min-w-0 flex-1">
+                  <div class="mb-2 flex items-center space-x-2">
+                    <h4 class="font-medium text-white">{{ comment.username }}</h4>
+                    <span class="text-xs text-purple-400">{{ comment.time }}</span>
                   </div>
 
-                  <div class="min-w-0 flex-1">
-                    <div class="mb-2 flex items-center gap-3">
-                      <span class="text-primary text-sm font-semibold">{{ comment.username }}</span>
-                      <span class="text-primary/50 text-xs">{{ comment.time }}</span>
-                    </div>
+                  <p class="mb-3 leading-relaxed text-white/90">{{ comment.content }}</p>
 
-                    <p class="text-primary/80 mb-4 text-sm leading-relaxed">
-                      {{ comment.content }}
-                    </p>
+                  <!-- 评论操作 -->
+                  <div class="flex items-center space-x-6 text-purple-300">
+                    <button class="flex items-center space-x-1 transition-colors hover:text-white">
+                      <span class="icon-[mdi--thumb-up-outline] h-4 w-4"></span>
+                      <span class="text-sm">{{ comment.likes }}</span>
+                    </button>
+                    <button class="flex items-center space-x-1 transition-colors hover:text-white">
+                      <span class="icon-[mdi--reply] h-4 w-4"></span>
+                      <span class="text-sm">回复</span>
+                    </button>
+                    <button class="transition-colors hover:text-white">
+                      <span class="icon-[mdi--dots-horizontal] h-4 w-4"></span>
+                    </button>
+                  </div>
 
-                    <div class="flex items-center gap-5 text-xs">
-                      <Button
-                        variant="ghost"
-                        size="none"
-                        class="text-primary/60 hover:text-primary flex items-center gap-1.5 transition-colors"
-                        icon="icon-[mdi--thumb-up-outline]"
-                        icon-class="h-4 w-4"
-                      >
-                        <span class="font-medium">{{ comment.likes || '' }}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="none"
-                        class="text-primary/60 hover:text-primary flex items-center gap-1.5 transition-colors"
-                        icon="icon-[mdi--reply]"
-                        icon-class="h-4 w-4"
-                      >
-                        <span class="font-medium">{{ $t('comments.reply') }}</span>
-                      </Button>
-                    </div>
-
-                    <!-- 回复列表 -->
+                  <!-- 回复列表 -->
+                  <div v-if="comment.replies && comment.replies.length > 0" class="mt-4 space-y-3">
                     <div
-                      v-if="comment.replies?.length"
-                      class="glass-card mt-4 space-y-3 rounded-xl p-4"
+                      v-for="(reply, replyIndex) in comment.replies"
+                      :key="replyIndex"
+                      class="flex items-start space-x-3 border-l-2 border-white/10 pl-4"
                     >
-                      <div v-for="(reply, ri) in comment.replies" :key="ri" class="flex gap-3">
-                        <img
-                          v-if="reply.avatarUrl"
-                          :src="reply.avatarUrl + '?param=80y80'"
-                          class="h-8 w-8 shrink-0 rounded-full ring-1 ring-glass"
-                        />
-                        <div class="min-w-0 flex-1">
-                          <span class="text-primary text-xs font-semibold">{{
-                            reply.username
-                          }}</span>
-                          <p class="text-primary/70 mt-1 text-xs leading-relaxed">
-                            {{ reply.content }}
-                          </p>
+                      <!-- 用户头像 -->
+                      <img :src="reply.avatarUrl" alt="" class="h-8 w-8 rounded-full" />
+                      <div class="min-w-0 flex-1">
+                        <div class="mb-1 flex items-center space-x-2">
+                          <h5 class="text-sm font-medium text-white">{{ reply.username }}</h5>
+                          <span class="text-xs text-purple-400">{{ reply.time }}</span>
                         </div>
+                        <p class="text-sm text-white/80">{{ reply.content }}</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            <!-- 空状态 -->
-            <div v-else class="flex flex-col items-center justify-center py-20">
-              <span class="icon-[mdi--comment-off-outline] text-primary/20 mb-4 h-16 w-16"></span>
-              <p class="text-primary/50 text-sm font-medium">{{ $t('comments.empty') }}</p>
-            </div>
-
-            <!-- 加载更多 -->
-            <div
-              v-if="comments.length >= 10"
-              class="border-t border-glass p-5 text-center"
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                class="text-primary/60 hover:text-primary text-sm font-medium transition-colors"
-              >
-                {{ $t('comments.loadMore') }}
-              </Button>
-            </div>
           </div>
-        </section>
 
-        <!-- 相似歌单 -->
-        <section v-show="activeTab === 'similar'" class="animate-fade-in">
-          <div
-            v-if="similarPlaylists.length"
-            class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-          >
-            <router-link
-              v-for="pl in similarPlaylists"
-              :key="pl.id"
-              :to="`/playlist/${pl.id}`"
-              class="group"
-            >
-              <div
-                class="glass-card overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-xl"
-              >
-                <div class="relative aspect-square overflow-hidden">
-                  <LazyImage
-                    :src="pl.coverImgUrl + '?param=300y300'"
-                    :alt="pl.name"
-                    imgClass="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    wrapperClass="h-full w-full"
-                  />
-                  <div
-                    class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100"
-                  >
-                    <div
-                      class="accent-gradient flex h-14 w-14 items-center justify-center rounded-full shadow-2xl"
-                    >
-                      <span class="icon-[mdi--play] h-7 w-7 text-white"></span>
-                    </div>
-                  </div>
-                  <div
-                    v-if="pl.playCount"
-                    class="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-md"
-                  >
-                    <span class="icon-[mdi--play] h-3.5 w-3.5"></span>
-                    {{ formatCount(pl.playCount) }}
-                  </div>
-                </div>
-                <div class="p-3">
-                  <p
-                    class="text-primary mb-1.5 line-clamp-2 text-sm leading-snug font-semibold transition-colors group-hover:text-pink-400"
-                  >
-                    {{ pl.name }}
-                  </p>
-                  <p class="text-primary/60 text-xs">
-                    {{ $t('commonUnits.songsShort', pl.trackCount) }}
-                    <span v-if="pl.creator"> • {{ pl.creator.nickname }}</span>
-                  </p>
-                </div>
-              </div>
-            </router-link>
+          <!-- 加载更多评论 -->
+          <div class="mt-8 text-center">
+            <button class="glass-button bg-white/10 px-6 py-3 text-white hover:bg-white/20">
+              加载更多评论
+            </button>
           </div>
-          <div
-            v-else
-            class="glass-card flex flex-col items-center justify-center py-20 text-center"
-          >
-            <span class="icon-[mdi--playlist-remove] text-primary/20 mb-5 h-20 w-20"></span>
-            <p class="text-primary/50 text-base font-medium">{{ $t('playlist.similarEmpty') }}</p>
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
+    </div>
     </template>
   </div>
 </template>
 
 <style scoped>
+/* Tab切换动画 */
 .animate-fade-in {
-  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn 0.3s ease-in-out;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Tab按钮悬停效果 */
+.tab-button:hover {
+  transform: translateY(-2px);
+}
+
+/* 动画定义 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes noteFloat {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.floating-notes {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.note {
+  position: absolute;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.2);
+  animation: noteFloat 12s linear infinite;
+}
+
+.note:nth-child(1) {
+  left: 10%;
+  animation-duration: 12s;
+}
+.note:nth-child(2) {
+  left: 20%;
+  animation-duration: 14s;
+}
+.note:nth-child(3) {
+  left: 30%;
+  animation-duration: 10s;
+}
+.note:nth-child(4) {
+  left: 50%;
+  animation-duration: 13s;
+}
+.note:nth-child(5) {
+  left: 60%;
+  animation-duration: 11s;
+}
+.note:nth-child(6) {
+  left: 70%;
+  animation-duration: 15s;
+}
+.note:nth-child(7) {
+  left: 80%;
+  animation-duration: 9s;
+}
+.note:nth-child(8) {
+  left: 90%;
+  animation-duration: 16s;
+}
+
+/* 评论区样式 */
+.comment-item {
+  position: relative;
+}
+
+.comment-item::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 50px;
+  bottom: -10px;
+  width: 1px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.comment-item:last-child::before {
+  display: none;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .song-item {
+    flex-direction: column;
+    align-items: flex-start;
+    space-y: 2;
+  }
+
+  .song-item .w-12,
+  .song-item .w-24,
+  .song-item .w-20 {
+    width: auto;
   }
 }
 </style>

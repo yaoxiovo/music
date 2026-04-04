@@ -1,282 +1,55 @@
 <script setup lang="ts">
-/**
- * PlayerDrawer - 全屏播放器抽屉
- * 包含黑胶/圆形频谱两种封面模式、歌词滚动、可视化背景、
- * 共享元素过渡动画、歌词拖动跳转等功能
- */
+// 播放抽屉：展示当前歌曲信息与歌词，支持滚动高亮与点击跳转
 import { gsap } from 'gsap'
 import { useAudio } from '@/composables/useAudio'
 import { useLyrics } from '@/composables/useLyrics'
-import { useLyricsScroll } from '@/composables/useLyricsScroll'
-import { useGradientBackground } from '@/composables/useGradientBackground'
-import { useCommentCount } from '@/composables/useCommentCount'
+import { commentMusic } from '@/api'
+import SongCommentsDialog from '@/components/Comments/SongCommentsDialog.vue'
+import { useNow, useOnline, useBattery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
-import { useAudioAnalyser } from '@/composables/useAudioAnalyser'
-import { useLyricsDrag } from '@/composables/useLyricsDrag'
-import { useDrawerTransition } from '@/composables/useDrawerTransition'
-import VinylDisc from '@/components/Player/VinylDisc.vue'
-
 const { t } = useI18n()
-const globalStore = useGlobalStore()
-const audioStore = useAudioStore()
-const settingsStore = useSettingsStore()
-const { audioVisualizer } = storeToRefs(settingsStore)
-
-// ═══ 主题与可视化器切换 ═══
-
-/** 当前主题对应图标 */
-const themeIcon = computed(() => {
-  switch (globalStore.theme) {
-    case 'light':
-      return 'icon-[mdi--white-balance-sunny]'
-    case 'dark':
-      return 'icon-[mdi--moon-waning-crescent]'
-    default:
-      return 'icon-[mdi--theme-light-dark]'
-  }
-})
-
-/** 循环切换主题：light → dark → system */
-const cycleTheme = () => {
-  const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
-  const idx = order.indexOf(globalStore.theme)
-  globalStore.setTheme(order[(idx + 1) % 3])
-}
-
-/** 循环切换可视化器类型：bars → wave → circular */
-const cycleVisualizerType = () => {
-  const types: Array<'bars' | 'wave' | 'circular'> = ['bars', 'wave', 'circular']
-  const idx = types.indexOf(audioVisualizer.value.visualizerType)
-  settingsStore.setAudioVisualizerType(types[(idx + 1) % 3])
-}
-
-/** 可视化器类型对应图标 */
-const visualizerTypeIcon = computed(() => {
-  switch (audioVisualizer.value.visualizerType) {
-    case 'bars':
-      return 'icon-[mdi--chart-bar]'
-    case 'wave':
-      return 'icon-[mdi--waveform]'
-    case 'circular':
-      return 'icon-[mdi--circle-outline]'
-  }
-})
-
-/** 抽屉开关（双向绑定） */
 const isOpen = defineModel<boolean>()
-
-// ═══ 模板引用 ═══
-const drawerRef = useTemplateRef('drawerRef')
-const lyricsRef = useTemplateRef('lyricsRef')
-const bgARef = useTemplateRef('bgARef')
-const bgBRef = useTemplateRef('bgBRef')
-const lyricsContainerRef = ref<HTMLElement | null>(null)
-const vinylDiscRef = ref<InstanceType<typeof VinylDisc> | null>(null)
-
-// ═══ 组合式函数 ═══
-
-// 音频播放器
+const state = reactive({
+  isRendered: false,
+  currentLyricIndex: 0,
+  lyricsOffset: 0,
+  isRecentOpen: false,
+  isCommentsOpen: false,
+  commentCount: 0,
+  // 是否使用封面背景（放大+模糊）
+  useCoverBg: true,
+  // 背景层管理（A/B双层交替淡入淡出）
+  bgActive: 'A' as 'A' | 'B',
+  bgAUrl: '' as string,
+  bgBUrl: '' as string,
+  lyricsPositioned: false,
+  autoScroll: true,
+  lyricsScale: 1,
+})
+// 响应式引用
+const { isRendered, currentLyricIndex, isRecentOpen, isCommentsOpen, commentCount } = toRefs(state)
+// 使用音频播放器
 const {
   currentSong,
   isPlaying,
   isLoading,
+  volume,
   currentTime,
+  progress,
   playMode,
   togglePlay,
   next,
   previous,
+  setVolume,
+  toggleMute,
+  setProgress,
   setCurrentTime,
   formattedCurrentTime,
   formattedDuration,
   togglePlayMode,
 } = useAudio()
 
-// 歌词
-const {
-  lyricsTrans,
-  lyricsRoma,
-  showTrans,
-  showRoma,
-  activeSingleLyrics,
-  activeTimeline,
-  timeForIndex,
-  fetchLyrics,
-} = useLyrics()
-
-// 歌词滚动
-const {
-  currentIndex: currentLyricIndex,
-  positioned: lyricsPositioned,
-  autoScroll,
-  scale: lyricsScale,
-  updateCurrentLyric,
-  scrollToCurrentLyric,
-  toggleAutoScroll,
-  resetLyrics,
-  increaseScale,
-  decreaseScale,
-} = useLyricsScroll({
-  lyricsRef,
-  timeline: activeTimeline,
-  currentTime,
-})
-
-// 歌词拖动
-const {
-  isDragging: lyricsDragging,
-  previewIndex: dragPreviewIndex,
-  previewInfo: dragPreviewInfo,
-  onDragStart: handleLyricsDragStart,
-} = useLyricsDrag({
-  lyricsRef,
-  lyricsContainerRef,
-  activeSingleLyrics,
-  timeForIndex,
-  setCurrentTime,
-  currentLyricIndex,
-  autoScroll,
-  scrollToCurrentLyric,
-  toggleAutoScroll,
-  formattedDuration,
-  showTrans,
-})
-
-// 背景渐变
-const {
-  useCoverBg,
-  bgAStyle,
-  bgBStyle,
-  activeGradient,
-  stopBackgroundBreathing,
-  setBackgroundGradient,
-} = useGradientBackground({
-  bgARef,
-  bgBRef,
-  isPlaying,
-  isOpen: isOpen as Ref<boolean>,
-})
-
-// 评论数量
-const songId = computed(() => currentSong.value?.id)
-const { commentCount } = useCommentCount({ songId })
-
-// 音频分析器
-const {
-  frequencyData,
-  timeDomainData,
-  isInitialized: isAnalyserInitialized,
-  init: initAnalyser,
-  start: startAnalyser,
-  stop: stopAnalyser,
-  resume: resumeAnalyser,
-} = useAudioAnalyser({
-  fftSize: 2048,
-  smoothingTimeConstant: 0.8,
-})
-
-// 抽屉过渡动画
-const {
-  isRendered,
-  open: openDrawer,
-  close: closeDrawer,
-} = useDrawerTransition({
-  drawerRef,
-  vinylDiscRef,
-  currentSong,
-  isPlaying,
-})
-
-// 本地 UI 状态
-const state = reactive({
-  /** 播放列表弹出框 */
-  isRecentOpen: false,
-  /** 评论弹窗 */
-  isCommentsOpen: false,
-  /** 移动端歌词视图 */
-  showMobileLyrics: false,
-  /** 圆形可视化器封面 URL */
-  circularCover: '' as string,
-  /** 封面翻转动画锁 */
-  isCircularFlipping: false,
-})
-
-const { isRecentOpen, isCommentsOpen, showMobileLyrics } = toRefs(state)
-
-// ═══ 圆形可视化器封面翻转动画 ═══
-
-const circularCoverRef = ref<HTMLElement | null>(null)
-
-/** 翻转动画：旋转 Y 轴 90° → 替换图片 → 旋转回来 + 发光 */
-const flipCircularCover = (newCover: string) => {
-  if (!circularCoverRef.value || state.isCircularFlipping) {
-    state.circularCover = newCover
-    return
-  }
-
-  if (!state.circularCover) {
-    state.circularCover = newCover
-    return
-  }
-
-  state.isCircularFlipping = true
-
-  const tl = gsap.timeline({
-    onComplete: () => {
-      state.isCircularFlipping = false
-    },
-  })
-
-  // 第一阶段：翻转到90度 + 缩放
-  tl.to(circularCoverRef.value, {
-    rotateY: 90,
-    scale: 0.85,
-    duration: 0.25,
-    ease: 'power2.in',
-    onComplete: () => {
-      state.circularCover = newCover
-    },
-  })
-
-  // 第二阶段：翻转回来
-  tl.to(circularCoverRef.value, {
-    rotateY: 0,
-    scale: 1,
-    duration: 0.35,
-    ease: 'back.out(1.7)',
-  })
-
-  // 添加发光效果
-  tl.fromTo(
-    circularCoverRef.value,
-    { boxShadow: '0 0 0 rgba(236, 72, 153, 0)' },
-    {
-      boxShadow: '0 0 40px rgba(236, 72, 153, 0.6)',
-      duration: 0.2,
-      yoyo: true,
-      repeat: 1,
-    },
-    0
-  )
-}
-
-/** 可视化器渐变色：从背景主色调提取并适配当前主题 */
-const visualizerGradient = computed(() => {
-  const gradient = activeGradient.value
-  if (gradient.length === 0) {
-    return ['#3b82f6', '#8b5cf6', '#ec4899']
-  }
-  const colors = gradient.map(color => {
-    const match = color.match(/rgba?\(([^)]+)\)/)
-    if (match) {
-      const values = match[1].split(',').slice(0, 3)
-      return `rgb(${values.join(',')})`
-    }
-    return color
-  })
-  return adaptColorsForTheme(colors)
-})
-
-/** 播放模式对应图标 */
+// 播放模式图标计算属性
 const playModeIconClass = computed(() => {
   switch (playMode.value) {
     case 'single':
@@ -289,425 +62,588 @@ const playModeIconClass = computed(() => {
   }
 })
 
-/** 切换歌词选项（翻译/罗马音），切换后重新定位 */
-const toggleLyricsOption = async (option: 'trans' | 'roma') => {
-  if (option === 'trans') showTrans.value = !showTrans.value
-  else showRoma.value = !showRoma.value
+// 响应式状态
+const drawerRef = useTemplateRef('drawerRef')
+const albumCoverRef = useTemplateRef('albumCoverRef')
+const lyricsRef = useTemplateRef('lyricsRef')
+const bgARef = useTemplateRef('bgARef')
+const bgBRef = useTemplateRef('bgBRef')
+
+// 顶部状态：当前时间与联网状态
+const now = useNow()
+const online = useOnline()
+const timeText = computed(() =>
+  new Date(now.value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+)
+const battery = useBattery()
+const batteryPct = computed(() =>
+  typeof battery.level?.value === 'number' ? Math.round(battery.level.value * 100) : null
+)
+const batteryIcon = computed(() =>
+  battery.charging?.value ? 'icon-[mdi--battery-charging]' : 'icon-[mdi--battery]'
+)
+
+// 歌词封装
+// 说明：集中管理歌词的多轨显示与时间轴信息
+// - lyricsTrans：翻译文本数组（可选显示）
+// - lyricsRoma：罗马音文本数组（可选显示）
+// - showTrans：翻译开关（true 显示翻译）
+// - showRoma：罗马音开关（true 显示罗马音）
+// - activeSingleLyrics：当前实际渲染的歌词行（随开关动态切换）
+// - activeTimeline：每句歌词的时间轴，用于定位与高亮
+// - timeForIndex：根据行索引返回对应的播放时间
+// - fetchLyrics：按歌曲 ID 拉取歌词数据
+const {
+  lyricsTrans,
+  lyricsRoma,
+  showTrans,
+  showRoma,
+  activeSingleLyrics,
+  activeTimeline,
+  timeForIndex,
+  fetchLyrics,
+} = useLyrics()
+// 切换“翻译”后：等待视图更新，重置定位标记并将当前行居中
+const toggleTransBtn = async () => {
+  showTrans.value = !showTrans.value
   await nextTick()
-  lyricsPositioned.value = false
+  state.lyricsPositioned = false
   updateCurrentLyric(true)
 }
+// 切换“罗马音”后：等待视图更新，重置定位标记并将当前行居中
+const toggleRomaBtn = async () => {
+  showRoma.value = !showRoma.value
+  await nextTick()
+  state.lyricsPositioned = false
+  updateCurrentLyric(true)
+}
+const toggleAutoScroll = () => {
+  state.autoScroll = !state.autoScroll
+  if (state.autoScroll) updateCurrentLyric(true)
+}
 
-/** 点击封面切换播放/暂停（加载中忽略） */
-const handleAlbumCoverClick = () => {
-  if (!isLoading.value) {
-    togglePlay()
+// 方法
+const handleTogglePlay = () => {
+  togglePlay()
+}
+
+const handleVolumeChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const newVolume = parseInt(target.value) / 100
+  setVolume(newVolume)
+}
+
+const handleProgressClick = (event: MouseEvent) => {
+  const progressBar = event.currentTarget as HTMLElement
+  const rect = progressBar.getBoundingClientRect()
+  const clickX = event.clientX - rect.left
+  const newProgress = (clickX / rect.width) * 100
+  setProgress(Math.max(0, Math.min(100, newProgress)))
+  updateCurrentLyric()
+}
+
+// 点击歌词跳转到对应时间
+const seekToLyric = (index: number) => {
+  const targetTime = timeForIndex(index) ?? 0
+  setCurrentTime(targetTime)
+  state.currentLyricIndex = index
+  scrollToCurrentLyric()
+}
+
+// 动画相关
+let albumRotationTween: gsap.core.Tween | null = null
+// 不再使用模拟计时器，改为监听音频 currentTime 更新歌词高亮
+
+const startAlbumRotation = () => {
+  if (albumCoverRef.value) {
+    albumRotationTween = gsap.to(albumCoverRef.value, {
+      rotation: 360,
+      duration: 10,
+      repeat: -1,
+      ease: 'none',
+    })
   }
 }
 
-// ═══ Watchers ═══
+const stopAlbumRotation = () => {
+  if (albumRotationTween) {
+    albumRotationTween.kill()
+    albumRotationTween = null
+  }
+}
 
-/** 抽屉开关：打开时初始化动画和背景，关闭时清理 */
+// 加载歌曲评论数量
+const loadCommentCount = async (songId?: number | string) => {
+  if (!songId) {
+    state.commentCount = 0
+    return
+  }
+  try {
+    const res: any = await commentMusic({ id: Number(songId), limit: 1, offset: 0 })
+    state.commentCount = Number(res?.data?.total ?? res?.total ?? res?.totalCount ?? 0)
+  } catch {
+    state.commentCount = 0
+  }
+}
+
+watch(
+  () => currentSong.value?.id,
+  id => {
+    loadCommentCount(id as any)
+  },
+  { immediate: true }
+)
+
+// 更新当前歌词索引
+// 说明：根据当前播放时间在时间轴中定位应高亮的歌词行，并触发居中滚动
+const updateCurrentLyric = (instant = false) => {
+  const adjustedTime = currentTime.value + state.lyricsOffset
+  const times = activeTimeline.value
+  if (!times.length) return
+  let idx = times.findIndex((t, i) => {
+    const nextT = times[i + 1]
+    return adjustedTime >= t && (nextT === undefined || adjustedTime < nextT)
+  })
+  if (idx === -1) {
+    if (adjustedTime < times[0]) idx = 0
+    else if (adjustedTime >= times[times.length - 1]) idx = times.length - 1
+    else idx = times.findIndex(t => t > adjustedTime)
+  }
+  if (idx !== -1 && idx !== state.currentLyricIndex) {
+    state.currentLyricIndex = idx
+    if (state.autoScroll) scrollToCurrentLyric(instant)
+  } else if (!state.lyricsPositioned) {
+    if (state.autoScroll) scrollToCurrentLyric(instant)
+  }
+}
+
+// 滚动到当前歌词位置
+// 说明：以容器的可视中心为参考，计算当前行相对中心的偏移量并平滑对齐
+const scrollToCurrentLyric = (instant = false) => {
+  if (lyricsRef.value && state.currentLyricIndex >= 0) {
+    const lyricsContainer = lyricsRef.value
+    const currentLyricElement = lyricsContainer.children[state.currentLyricIndex] as HTMLElement
+
+    if (currentLyricElement) {
+      const containerHeight = lyricsContainer.parentElement?.clientHeight || 0
+      const targetScrollTop =
+        currentLyricElement.offsetTop - containerHeight / 2 + currentLyricElement.clientHeight / 2
+      if (instant || !state.lyricsPositioned) {
+        gsap.set(lyricsContainer, { y: -targetScrollTop })
+        state.lyricsPositioned = true
+      } else {
+        gsap.to(lyricsContainer, {
+          y: -targetScrollTop,
+          duration: 0.8,
+          ease: 'power2.out',
+        })
+      }
+    }
+  }
+}
+
+// 背景封面淡入淡出
+const setBackground = (url?: string) => {
+  if (!state.useCoverBg || !url) return
+  if (state.bgAUrl === '' && state.bgBUrl === '') {
+    // 初始设置：直接显示A层
+    state.bgAUrl = url
+    if (bgARef.value) gsap.set(bgARef.value, { opacity: 0 })
+    if (bgARef.value) gsap.to(bgARef.value, { opacity: 0.6, duration: 0.8, ease: 'power2.out' })
+    state.bgActive = 'A'
+    return
+  }
+
+  if (state.bgActive === 'A') {
+    state.bgBUrl = url
+    if (bgBRef.value) gsap.set(bgBRef.value, { opacity: 0 })
+    if (bgBRef.value)
+      gsap.to(bgBRef.value as any, { opacity: 0.6, duration: 0.8, ease: 'power2.out' })
+    if (bgARef.value)
+      gsap.to(bgARef.value as any, { opacity: 0, duration: 0.8, ease: 'power2.out' })
+    state.bgActive = 'B'
+  } else {
+    state.bgAUrl = url
+    if (bgARef.value) gsap.set(bgARef.value, { opacity: 0 })
+    if (bgARef.value)
+      gsap.to(bgARef.value as any, { opacity: 0.6, duration: 0.8, ease: 'power2.out' })
+    if (bgBRef.value)
+      gsap.to(bgBRef.value as any, { opacity: 0, duration: 0.8, ease: 'power2.out' })
+    state.bgActive = 'A'
+  }
+}
+
+// 抽屉动画
+const openDrawer = () => {
+  if (drawerRef.value) {
+    gsap.set(drawerRef.value, { display: 'flex' })
+
+    const tl = gsap.timeline()
+    tl.fromTo(
+      drawerRef.value,
+      {
+        y: '-100%',
+        opacity: 0,
+      },
+      {
+        y: '0%',
+        opacity: 1,
+        duration: 0.6,
+        ease: 'power3.out',
+      }
+    )
+      .fromTo(
+        '.album-cover',
+        {
+          scale: 0.5,
+          opacity: 0,
+        },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.5,
+          ease: 'back.out(1.7)',
+        },
+        '-=0.3'
+      )
+      .fromTo(
+        '.lyric-line',
+        {
+          y: 30,
+          opacity: 0,
+        },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.4,
+          stagger: 0.1,
+          ease: 'power2.out',
+        },
+        '-=0.2'
+      )
+  }
+}
+
+const closeDrawer = () => {
+  if (drawerRef.value) {
+    const tl = gsap.timeline({
+      onComplete: () => {
+        state.isRendered = false
+      },
+    })
+
+    tl.to(drawerRef.value, {
+      y: '-100%',
+      opacity: 0,
+      duration: 0.4,
+      ease: 'power3.in',
+    })
+
+    stopAlbumRotation()
+  }
+}
+
+// 监听器
 watch(
   () => isOpen.value,
   async newVal => {
     if (newVal) {
-      isRendered.value = true
+      state.isRendered = true
       await nextTick()
       openDrawer()
-      lyricsPositioned.value = false
+      state.lyricsPositioned = false
       updateCurrentLyric(true)
-      setBackgroundGradient(currentSong.value?.cover)
+      setBackground(currentSong.value?.cover)
+      isPlaying.value ? startAlbumRotation() : stopAlbumRotation()
     } else {
       closeDrawer()
-      stopBackgroundBreathing()
+      isPlaying.value ? startAlbumRotation() : stopAlbumRotation()
     }
   }
 )
 
-/** 播放状态变化：控制呼吸动画和音频分析器 */
+// 播放状态控制封面旋转
 watch(
   isPlaying,
   playing => {
-    if (playing) {
-      if (isAnalyserInitialized.value) {
-        startAnalyser()
-        resumeAnalyser()
-      }
-    } else {
-      stopBackgroundBreathing()
-      stopAnalyser()
-    }
+    playing ? startAlbumRotation() : stopAlbumRotation()
   },
   { immediate: true }
 )
 
+// 监听当前时间更新歌词高亮
 watch(currentTime, () => {
   updateCurrentLyric()
 })
 
-/** 切歌时：加载歌词、重置滚动、更新背景、翻转封面 */
+watch(
+  () => activeSingleLyrics.value,
+  () => {
+    console.log(
+      '🚀 ~ file: PlayerDrawer.vue:377 ~ activeSingleLyrics.value:',
+      activeSingleLyrics.value
+    )
+  }
+)
+
+// 当前歌曲变化时拉取歌词
 watch(
   currentSong,
-  async (s, oldSong) => {
+  async s => {
     await fetchLyrics(s?.id)
-    resetLyrics()
+    state.currentLyricIndex = 0
+    state.lyricsPositioned = false
     await nextTick()
     updateCurrentLyric(true)
-    setBackgroundGradient(s?.cover, 0)
-
-    // 触发圆形可视化器封面翻转动画
-    if (s?.cover && oldSong && oldSong.id !== s.id) {
-      flipCircularCover(s.cover)
-    } else if (s?.cover && !state.circularCover) {
-      state.circularCover = s.cover
-    }
+    // 背景封面淡入淡出
+    setBackground(s?.cover)
   },
   { immediate: true }
 )
 
+// 生命周期
 onMounted(() => {
   if (drawerRef.value) {
     gsap.set(drawerRef.value as any, { display: 'none' })
   }
-
-  // 初始化音频分析器
-  const audioElement = audioStore.audio.audio
-  if (audioElement && !isAnalyserInitialized.value) {
-    initAnalyser(audioElement)
-  }
 })
-
-/** 监听音频元素变化，初始化频谱分析器 */
-watch(
-  () => audioStore.audio.audio,
-  audioElement => {
-    if (audioElement && !isAnalyserInitialized.value) {
-      initAnalyser(audioElement)
-      if (isPlaying.value && isOpen.value) {
-        startAnalyser()
-        resumeAnalyser()
-      }
-    }
-  }
-)
 
 onUnmounted(() => {
-  stopBackgroundBreathing()
+  stopAlbumRotation()
 })
 </script>
-
 <template>
   <div
     v-if="isRendered"
     ref="drawerRef"
-    class="bg-overlay/95 absolute inset-0 z-50 flex backdrop-blur-md backdrop-filter"
+    :class="[
+      'absolute inset-0 z-50 flex backdrop-blur-md backdrop-filter',
+      state.useCoverBg
+        ? isRecentOpen
+          ? 'bg-black/70'
+          : 'bg-black/90'
+        : isRecentOpen
+          ? 'bg-black/65'
+          : 'bg-black/85',
+    ]"
   >
-    <div v-show="useCoverBg" class="absolute inset-0 -z-10 overflow-hidden">
-      <div ref="bgARef" class="bg-layer absolute inset-0 opacity-0" :style="bgAStyle"></div>
-      <div ref="bgBRef" class="bg-layer absolute inset-0 opacity-0" :style="bgBStyle"></div>
-      <div class="bg-overlay/40 absolute inset-0"></div>
-      <!-- 暗角 -->
-      <div class="vignette pointer-events-none absolute inset-0"></div>
-
-      <!-- 音频可视化器 - 占满背景底部 -->
+    <!-- 背景：封面放大+模糊（双层淡入淡出） -->
+    <div v-if="state.useCoverBg" class="absolute inset-0 -z-10">
       <div
-        v-if="
-          isAnalyserInitialized &&
-          audioVisualizer.enabledInDrawer &&
-          audioVisualizer.visualizerType !== 'circular'
-        "
-        class="absolute right-0 bottom-0 left-0 z-10 opacity-30"
-      >
-        <AudioVisualizer
-          :frequency-data="frequencyData"
-          :time-domain-data="timeDomainData"
-          :type="audioVisualizer.visualizerType"
-          :bar-count="128"
-          :bar-width="4"
-          :bar-gap="1"
-          :gradient-colors="visualizerGradient"
-          :height="180"
-          class="h-full"
-        />
-      </div>
-    </div>
-
-    <div
-      class="absolute top-0 right-0 left-0 z-10 flex items-center justify-between p-4 lg:px-6 lg:pt-5"
-    >
-      <div class="flex items-center gap-2">
-        <div class="glass-toolbar flex items-center gap-0.5 rounded-xl p-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            :title="t('player.fontDec')"
-            @click="decreaseScale()"
-            icon="icon-[mdi--format-font-size-decrease]"
-            icon-class="h-4 w-4"
-          />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            :title="t('player.fontInc')"
-            @click="increaseScale()"
-            icon="icon-[mdi--format-font-size-increase]"
-            icon-class="h-4 w-4"
-          />
-          <div class="mx-0.5 h-4 w-px bg-white/8"></div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            :class="{ 'text-primary bg-white/12 ring-1 ring-white/15': autoScroll }"
-            :title="t('player.autoCenter')"
-            @click="toggleAutoScroll"
-          >
-            <span
-              :class="autoScroll ? 'icon-[mdi--autorenew]' : 'icon-[mdi--pause]'"
-              class="h-4 w-4"
-            ></span>
-          </Button>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <div
-          v-if="lyricsTrans.length || lyricsRoma.length"
-          class="glass-toolbar flex items-center gap-1 rounded-xl p-1"
-        >
-          <Button
-            v-if="lyricsTrans.length"
-            variant="ghost"
-            size="sm"
-            rounded="lg"
-            class="gap-1.5 text-xs"
-            :class="{ 'text-primary bg-white/12 ring-1 ring-white/15': showTrans }"
-            @click="toggleLyricsOption('trans')"
-          >
-            <span class="icon-[mdi--translate] h-3.5 w-3.5" />
-            <span>{{ t('player.translate') }}</span>
-          </Button>
-          <Button
-            v-if="lyricsRoma.length"
-            variant="ghost"
-            size="sm"
-            rounded="lg"
-            class="gap-1.5 text-xs"
-            :class="{ 'text-primary bg-white/12 ring-1 ring-white/15': showRoma }"
-            @click="toggleLyricsOption('roma')"
-          >
-            <span class="icon-[mdi--alphabetical-variant] h-3.5 w-3.5"></span>
-            <span>{{ t('player.roma') }}</span>
-          </Button>
-        </div>
-
-        <div class="glass-toolbar flex items-center gap-0.5 rounded-xl p-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            class="lg:hidden"
-            @click="showMobileLyrics = !showMobileLyrics"
-            :icon="showMobileLyrics ? 'icon-[mdi--album]' : 'icon-[mdi--text-box-outline]'"
-            icon-class="h-4 w-4"
-          />
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            :class="{ 'bg-white/12 text-yellow-300/80': !useCoverBg }"
-            @click="useCoverBg = !useCoverBg"
-            :title="t('player.toggleBg')"
-          >
-            <span
-              :class="[
-                useCoverBg ? 'icon-[mdi--image-multiple-outline]' : 'icon-[mdi--palette-swatch]',
-                'h-4 w-4',
-              ]"
-            ></span>
-          </Button>
-
-          <Button
-            v-if="isAnalyserInitialized"
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            :class="{ 'bg-white/12 text-cyan-300/80': audioVisualizer.enabledInDrawer }"
-            @click="settingsStore.setAudioVisualizerDrawer(!audioVisualizer.enabledInDrawer)"
-            title="切换频谱显示"
-            icon="icon-[mdi--waveform]"
-            icon-class="h-4 w-4"
-          />
-
-          <Button
-            v-if="isAnalyserInitialized && audioVisualizer.enabledInDrawer"
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            @click="cycleVisualizerType"
-            title="切换频谱模式"
-          >
-            <span :class="[visualizerTypeIcon, 'h-4 w-4']"></span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            @click="cycleTheme"
-            :title="t('components.settings.themeMode')"
-          >
-            <span :class="[themeIcon, 'h-4 w-4']"></span>
-          </Button>
-
-          <div class="mx-0.5 h-4 w-px bg-white/8"></div>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            rounded="lg"
-            @click="isOpen = false"
-            icon="icon-[mdi--chevron-down]"
-            icon-class="h-5 w-5"
-          />
-        </div>
-      </div>
-    </div>
-
-    <div
-      class="player-left-panel flex w-full flex-col items-center justify-center px-4 pt-20 pb-8 lg:w-1/2 lg:px-8 lg:pt-24 lg:pb-12"
-      :class="{ 'hidden lg:flex': state.showMobileLyrics }"
-    >
-      <!-- 专辑封面区域 -->
-      <!-- 圆形频谱可视化模式 -->
+        ref="bgARef"
+        class="absolute inset-0 scale-130 transform bg-cover bg-top opacity-50 blur-2xl"
+        :style="state.bgAUrl ? { backgroundImage: `url(${state.bgAUrl})` } : {}"
+      ></div>
       <div
-        v-if="
-          isAnalyserInitialized &&
-          audioVisualizer.enabledInDrawer &&
-          audioVisualizer.visualizerType === 'circular'
-        "
-        class="mb-4 flex flex-col items-center lg:mb-6"
-      >
-        <!-- 可视化容器：固定尺寸 384px -->
-        <div class="relative mb-6">
-          <AudioVisualizer
-            :frequency-data="frequencyData"
-            :time-domain-data="timeDomainData"
-            type="circular"
-            :bar-count="128"
-            :gradient-colors="visualizerGradient"
-            :height="384"
-            class="h-full w-full"
-          />
-          <!-- 中心封面 - 带翻转动画 -->
-          <div
-            ref="circularCoverRef"
-            class="circular-cover absolute top-1/2 left-1/2 aspect-square w-1/2 -translate-x-1/2 -translate-y-1/2 scale-80 cursor-pointer overflow-hidden rounded-full"
-            style="perspective: 1000px; transform-style: preserve-3d"
-            @click="handleAlbumCoverClick"
-          >
-            <img
-              v-if="state.circularCover"
-              :src="state.circularCover + '?param=320x320'"
-              :alt="currentSong?.name"
-              class="h-full w-full object-cover"
-              style="backface-visibility: hidden"
-            />
-            <div v-else class="h-full w-full bg-linear-to-br from-blue-500 to-purple-600"></div>
-          </div>
-        </div>
-      </div>
-      <!-- 黑胶播放器模式 -->
-      <div v-else class="mb-4 flex flex-col items-center lg:mb-6">
-        <VinylDisc
-          ref="vinylDiscRef"
-          :cover="currentSong?.cover"
-          :is-playing="isPlaying"
-          :is-loading="isLoading"
-          size="lg"
-          class="album-cover mb-6"
-          @click="handleAlbumCoverClick"
-        />
-      </div>
-
-      <!-- 歌曲信息（两种模式共享） -->
-      <div class="song-info mb-4 text-center lg:mb-6">
-        <h2
-          class="song-title text-primary mb-1 line-clamp-1 text-xl font-bold sm:text-2xl lg:text-3xl"
+        ref="bgBRef"
+        class="absolute inset-0 scale-130 transform bg-cover bg-top opacity-50 blur-2xl"
+        :style="state.bgBUrl ? { backgroundImage: `url(${state.bgBUrl})` } : {}"
+      ></div>
+    </div>
+    <div class="absolute top-6 left-6 z-10 flex gap-2">
+      <div class="flex items-center gap-2 rounded-2xl p-1">
+        <button
+          class="glass-button flex h-9 w-9 items-center justify-center rounded-full"
+          :title="t('player.fontDec')"
+          @click="state.lyricsScale = Math.max(0.8, state.lyricsScale - 0.05)"
         >
-          {{ currentSong?.name || t('player.unknownSong') }}
-        </h2>
-        <p class="text-primary/60 text-sm sm:text-base lg:text-lg">
-          {{ currentSong?.artist || t('player.unknownArtist') }}
-        </p>
-        <p v-if="currentSong?.album" class="text-primary/35 mt-0.5 text-xs sm:text-sm">
-          {{ currentSong.album }}
-        </p>
-      </div>
-
-      <div v-if="currentSong" class="mb-5 w-full max-w-xl px-4">
-        <MusicProgress :color="visualizerGradient" />
-        <div class="mt-1.5 flex justify-between">
-          <span class="text-primary/45 text-[11px] tabular-nums">{{
-            isLoading ? t('player.loading') : formattedCurrentTime
-          }}</span>
-          <span class="text-primary/45 text-[11px] tabular-nums">{{ formattedDuration }}</span>
-        </div>
-      </div>
-
-      <div class="controls-row mb-5 flex items-center gap-3 sm:gap-5 lg:mb-6">
-        <Button
-          variant="ghost"
-          rounded="full"
-          size="none"
-          class="ctrl-btn h-10 w-10 justify-center"
-          :class="{ 'bg-pink-500/15 text-pink-400!': playMode !== 'list' }"
-          @click="togglePlayMode"
+          <span class="icon-[mdi--format-font-size-decrease] h-4 w-4 text-white"></span>
+        </button>
+        <button
+          class="glass-button flex h-9 w-9 items-center justify-center rounded-full"
+          :title="t('player.fontInc')"
+          @click="state.lyricsScale = Math.min(1.4, state.lyricsScale + 0.05)"
         >
-          <span :class="playModeIconClass" class="h-5 w-5" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          rounded="full"
-          size="none"
-          class="ctrl-btn h-12 w-12 justify-center"
-          @click="previous"
-          icon="icon-[mdi--skip-previous]"
-          icon-class="h-6 w-6"
-        />
-
-        <Button
-          variant="gradient"
-          rounded="full"
-          size="none"
-          class="main-play-btn h-[72px] w-[72px] justify-center"
-          :loading="isLoading"
-          :pulse="true"
-          :press3d="true"
-          @click="togglePlay"
+          <span class="icon-[mdi--format-font-size-increase] h-4 w-4 text-white"></span>
+        </button>
+        <button
+          class="glass-button flex h-9 w-9 items-center justify-center rounded-full"
+          :class="state.autoScroll ? 'bg-hover-glass ring-1 ring-white/15' : ''"
+          :title="t('player.autoCenter')"
+          @click="toggleAutoScroll"
         >
           <span
-            v-if="!isLoading"
-            :class="!isPlaying ? 'icon-[mdi--play]' : 'icon-[mdi--pause]'"
-            class="h-8 w-8"
+            :class="state.autoScroll ? 'icon-[mdi--autorenew]' : 'icon-[mdi--pause]'"
+            class="h-4 w-4 text-white"
           ></span>
-        </Button>
+        </button>
+      </div>
+      <div class="glass-nav flex items-center gap-2 rounded-2xl px-3 py-1">
+        <span class="text-sm text-white">{{ timeText }}</span>
+        <span class="flex items-center gap-1 text-sm text-white">
+          <span
+            :class="online ? 'bg-green-400' : 'bg-red-400'"
+            class="inline-block h-2 w-2 rounded-full"
+          ></span>
+          {{ online ? t('player.online') : t('player.offline') }}
+        </span>
+        <span v-if="battery.isSupported" class="flex items-center gap-1 text-sm text-white">
+          <span :class="batteryIcon" class="h-4 w-4"></span>
+          {{ batteryPct !== null ? batteryPct + '%' : 'N/A' }}
+        </span>
+      </div>
+    </div>
+    <div class="absolute top-6 right-6 z-10 flex gap-4">
+      <div
+        v-if="lyricsTrans.length || lyricsRoma.length"
+        class="flex items-center gap-2 rounded-2xl p-1"
+      >
+        <button
+          v-if="lyricsTrans.length"
+          class="glass-button flex items-center gap-2 rounded-xl px-3 py-1 text-white opacity-80 hover:opacity-100"
+          :class="showTrans ? 'bg-hover-glass opacity-100 ring-1 ring-white/15' : ''"
+          @click="toggleTransBtn"
+        >
+          <span class="icon-[mdi--translate] h-4 w-4"></span>
+          <span>{{ t('player.translate') }}</span>
+        </button>
+        <button
+          v-if="lyricsRoma.length"
+          class="glass-button flex items-center gap-2 rounded-xl px-3 py-1 text-white opacity-80 hover:opacity-100"
+          :class="showRoma ? 'bg-hover-glass opacity-100 ring-1 ring-white/15' : ''"
+          @click="toggleRomaBtn"
+        >
+          <span class="icon-[mdi--alphabetical-variant] h-4 w-4"></span>
+          <span>{{ t('player.roma') }}</span>
+        </button>
+      </div>
+      <button
+        class="glass-button ml-3 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+        :class="state.useCoverBg ? '' : 'bg-(--glass-hover-item-bg) ring-1 ring-white/15'"
+        @click="state.useCoverBg = !state.useCoverBg"
+        :title="t('player.toggleBg')"
+      >
+        <span
+          :class="[
+            state.useCoverBg
+              ? 'icon-[mdi--image-multiple-outline] text-white'
+              : 'icon-[mdi--palette-swatch] text-yellow-300',
+            'h-6 w-6',
+          ]"
+        ></span>
+      </button>
+      <!-- 关闭按钮 -->
 
-        <Button
-          variant="ghost"
-          rounded="full"
-          size="none"
-          class="ctrl-btn h-12 w-12 justify-center"
+      <button
+        @click="isOpen = false"
+        class="glass-button flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+      >
+        <span class="icon-[mdi--close] h-6 w-6 text-white"></span>
+      </button>
+    </div>
+
+    <!-- 左侧：歌曲信息和控件 -->
+    <div class="flex w-1/2 flex-col items-center justify-center px-12 py-16">
+      <!-- 专辑封面区域（黑胶风格） -->
+      <div class="mb-8 flex flex-col items-center">
+        <div class="album-wrapper relative mb-6 h-96 w-96">
+          <!-- 黑胶盘：外层为黑胶，内层为封面标签 -->
+          <div
+            ref="albumCoverRef"
+            class="album-cover vinyl-disc relative h-96 w-96 overflow-hidden rounded-full shadow-2xl"
+          >
+            <!-- 封面标签（纸质质感 + 内外圈） -->
+            <div
+              class="vinyl-label absolute top-1/2 left-1/2 flex h-48 w-48 -translate-1/2 items-center justify-center rounded-full bg-cover text-center"
+              :style="{
+                backgroundImage: currentSong?.cover
+                  ? `url(${currentSong.cover})`
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              }"
+            ></div>
+
+            <!-- 中心金属轴 -->
+            <div
+              class="spindle absolute top-1/2 left-1/2 h-4 w-4 -translate-1/2 rounded-full"
+            ></div>
+          </div>
+
+          <!-- 黑胶指针（写实：底座 + 手臂 + 唱头 + 配重） -->
+          <div
+            class="tonearm absolute -top-16 -right-20 z-10 origin-top-left transition-transform duration-500 ease-out"
+            :class="isPlaying ? 'rotate-16' : 'rotate-[-28deg]'"
+          >
+            <!-- 轴心底座 -->
+            <div class="arm-pivot relative h-12 w-12 rounded-full shadow-xl"></div>
+            <!-- 手臂主体 -->
+            <div class="arm-shaft mt-[-2px] h-44 w-3 rounded-full"></div>
+            <!-- 配重块 -->
+            <div class="counterweight -mt-4 ml-2 h-7 w-7 rounded-full shadow-md"></div>
+            <!-- 唱头与针 -->
+            <div class="headshell relative mt-1 h-10 w-16 rounded-md shadow-md">
+              <div
+                class="cartridge absolute top-1/2 left-1/2 h-5 w-10 -translate-x-1/2 -translate-y-1/2 rounded-sm"
+              ></div>
+              <div class="stylus absolute top-full left-1/2 h-5 w-[2px] -translate-x-1/2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 歌曲信息 -->
+        <div class="text-center">
+          <h2 class="mb-2 text-2xl font-bold text-white">
+            {{ currentSong?.name || t('player.unknownSong') }}
+          </h2>
+          <p class="text-lg text-white/80">{{ currentSong?.artist || t('player.unknownArtist') }}</p>
+          <p class="mt-1 text-sm text-white/60">{{ currentSong?.album || t('player.unknownAlbum') }}</p>
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div v-if="currentSong" class="mb-3 flex w-3/5 items-center space-x-3">
+        <span class="text-xs text-white/60">{{ isLoading ? t('player.loading') : formattedCurrentTime }}</span>
+        <div
+          @click="handleProgressClick"
+          class="relative h-1 flex-1 cursor-pointer overflow-hidden rounded-full bg-white/20"
+        >
+          <div
+            class="h-full rounded-full bg-linear-to-r from-pink-400 to-purple-500 transition-all duration-200"
+            :style="{ width: `${progress}%` }"
+          ></div>
+        </div>
+        <span class="text-xs text-white/60">{{ formattedDuration }}</span>
+      </div>
+
+      <!-- 控制按钮 -->
+      <div class="mb-8 flex items-center space-x-6">
+        <!-- 播放模式 -->
+        <button
+          @click="togglePlayMode"
+          class="glass-button flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+          :class="{ 'bg-pink-500/30': playMode !== 'list' }"
+        >
+          <component :is="'span'" :class="playModeIconClass" class="h-5 w-5 text-white" />
+        </button>
+
+        <!-- 上一首 -->
+        <button
+          @click="previous"
+          class="glass-button flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+        >
+          <span class="icon-[mdi--skip-previous] h-6 w-6 text-white"></span>
+        </button>
+
+        <!-- 播放/暂停 -->
+        <button
+          @click="handleTogglePlay"
+          :disabled="isLoading"
+          class="flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-r from-pink-500 to-purple-600 shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-pink-500/25"
+          :class="isLoading ? 'cursor-wait opacity-60' : ''"
+        >
+          <span v-if="isLoading" class="icon-[mdi--loading] h-8 w-8 animate-spin text-white"></span>
+          <span v-else-if="!isPlaying" class="icon-[mdi--play] ml-1 h-8 w-8 text-white"></span>
+          <span v-else class="icon-[mdi--pause] h-8 w-8 text-white"></span>
+        </button>
+
+        <!-- 下一首 -->
+        <button
           @click="next"
-          icon="icon-[mdi--skip-next]"
-          icon-class="h-6 w-6"
-        />
+          class="glass-button flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+        >
+          <span class="icon-[mdi--skip-next] h-6 w-6 text-white"></span>
+        </button>
 
+        <!-- 播放列表 -->
         <PlaylistBubble
           v-model:show="isRecentOpen"
           placement="top-left"
@@ -715,107 +651,82 @@ onUnmounted(() => {
           :offset-y="10"
         >
           <template #trigger>
-            <Button
-              variant="ghost"
-              rounded="full"
-              size="none"
-              class="ctrl-btn h-10 w-10 justify-center"
-              icon="icon-[mdi--playlist-music]"
-              icon-class="h-5 w-5"
-            />
+            <button
+              class="glass-button flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+            >
+              <span class="icon-[mdi--playlist-music] h-5 w-5 text-white"></span>
+            </button>
           </template>
         </PlaylistBubble>
       </div>
 
-      <div class="flex w-full max-w-sm items-center justify-between px-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          rounded="2xl"
-          class="gap-1.5 px-3.5 py-1.5 text-xs"
-          @click="isCommentsOpen = true"
-        >
-          <span class="icon-[mdi--comment-outline] h-4 w-4"></span>
-          <span>{{ commentCount }}</span>
-        </Button>
-
-        <div class="volume-control flex items-center gap-2">
-          <VolumeControl />
+      <!-- 底部控制栏 -->
+      <div class="flex w-full max-w-md items-center justify-between">
+        <!-- 评论按钮 -->
+        <div class="flex items-center gap-2">
+          <button
+            class="glass-button flex items-center gap-2 rounded-2xl px-3 py-2 text-sm"
+            @click="isCommentsOpen = true"
+          >
+            <span class="icon-[mdi--comment-outline] h-5 w-5 text-white/80"></span>
+            <span class="text-white/90">{{ commentCount }}</span>
+          </button>
+        </div>
+        <!-- 音量控制 -->
+        <div class="flex items-center justify-center space-x-3">
+          <button @click="toggleMute" class="flex items-center transition-colors duration-200">
+            <span v-if="volume === 0" class="icon-[mdi--volume-off] h-5 w-5 text-white/80"></span>
+            <span
+              v-else-if="volume < 0.5"
+              class="icon-[mdi--volume-medium] h-5 w-5 text-white/80"
+            ></span>
+            <span v-else class="icon-[mdi--volume-high] h-5 w-5 text-white/80"></span>
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            :value="volume * 100"
+            @input="handleVolumeChange"
+            class="slider h-2 w-20 appearance-none rounded-full bg-white/20 outline-none"
+          />
         </div>
       </div>
     </div>
 
-    <div
-      class="player-right-panel hidden w-1/2 flex-col px-6 pt-20 pb-8 lg:flex lg:px-8 lg:pt-24 lg:pb-12"
-      :class="{ 'flex! w-full': state.showMobileLyrics }"
-    >
-      <div
-        ref="lyricsContainerRef"
-        class="lyrics-container relative h-full flex-1 overflow-hidden"
-        :class="{ 'cursor-grabbing': lyricsDragging, 'cursor-grab': !lyricsDragging }"
-      >
-        <div
-          ref="lyricsRef"
-          class="lyrics-scroll relative z-20 h-full select-none"
-          :style="{ fontSize: lyricsScale + 'rem' }"
-          @mousedown="handleLyricsDragStart"
-          @touchstart="handleLyricsDragStart"
-        >
+    <!-- 右侧：歌词区域 -->
+    <div class="flex w-1/2 flex-col px-12 py-16">
+      <div class="flex h-full flex-col p-8">
+        <!-- 歌词滚动区域（支持单轨或双轨对照） -->
+        <div class="lyrics-container relative flex-1 overflow-hidden">
           <div
-            v-for="(line, index) in activeSingleLyrics"
-            :key="index"
-            class="lyric-line text-center transition-all duration-500"
-            :class="{
-              current: index === (lyricsDragging ? dragPreviewIndex : currentLyricIndex),
-              'text-primary/40': index !== (lyricsDragging ? dragPreviewIndex : currentLyricIndex),
-            }"
+            ref="lyricsRef"
+            class="lyrics-scroll relative z-20 h-full"
+            :style="{ fontSize: state.lyricsScale + 'rem' }"
           >
-            <p class="lyric-text pointer-events-none">{{ line.ori }}</p>
-            <p v-if="showTrans && line.tran" class="lyric-sub pointer-events-none">
-              {{ line.tran }}
-            </p>
-            <p v-if="showRoma && line.roma" class="lyric-sub pointer-events-none">
-              {{ line.roma }}
-            </p>
+            <div
+              v-for="(line, index) in activeSingleLyrics"
+              :key="index"
+              class="lyric-line z-50 mb-6 cursor-pointer text-center transition-all duration-500"
+              :class="{
+                'scale-110 transform text-xl font-semibold text-white': index === currentLyricIndex,
+                'text-white/50 hover:text-white/70': index !== currentLyricIndex,
+              }"
+              @click="seekToLyric(index)"
+            >
+              <p>{{ line.ori }}</p>
+              <p v-if="showTrans && line.tran">{{ line.tran }}</p>
+              <p v-if="showRoma && line.roma">{{ line.roma }}</p>
+            </div>
+            <!-- 空白占位，确保最后一句歌词能滚动到中心 -->
+            <div class="h-64"></div>
           </div>
-          <div class="h-64"></div>
-        </div>
 
-        <!-- 歌词中心指示线 -->
-        <!-- <div class="pointer-events-none absolute top-1/2 right-0 left-0 -z-10 flex items-center">
+          <!-- 中心指示线 -->
           <div
-            class="center-line h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent"
+            class="pointer-events-none absolute top-1/2 right-0 left-0 -z-10 h-px bg-linear-to-r from-transparent via-white/30 to-transparent"
           ></div>
-        </div> -->
-
-        <!-- 拖动时显示的时间和歌词提示 -->
-        <Transition name="fade-scale">
-          <div
-            v-if="lyricsDragging && dragPreviewInfo"
-            class="drag-preview pointer-events-none absolute top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/10 bg-black/85 px-6 py-4 shadow-2xl backdrop-blur-xl"
-          >
-            <div class="mb-3 flex items-center justify-center gap-3">
-              <span class="text-primary text-2xl font-bold tabular-nums">{{
-                dragPreviewInfo.time
-              }}</span>
-              <span class="text-primary/25">/</span>
-              <span class="text-lg text-white/40 tabular-nums">{{
-                dragPreviewInfo.totalDuration
-              }}</span>
-            </div>
-            <div class="max-w-md text-center">
-              <p class="text-primary mb-1.5 text-base leading-relaxed font-medium">
-                {{ dragPreviewInfo.lyric.ori }}
-              </p>
-              <p
-                v-if="dragPreviewInfo.showTrans && dragPreviewInfo.lyric.tran"
-                class="text-primary/50 text-sm"
-              >
-                {{ dragPreviewInfo.lyric.tran }}
-              </p>
-            </div>
-          </div>
-        </Transition>
+        </div>
       </div>
     </div>
   </div>
@@ -823,72 +734,150 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-@reference "../style/tailwind.css";
-.bg-layer {
-  transform: scale(1.5);
-  filter: blur(48px) saturate(1.3);
-  transition: filter 0.3s ease;
-  will-change: transform, opacity;
+.vinyl-disc {
+  background: radial-gradient(circle at 50% 50%, #161616 0%, #0b0b0b 60%, #000 100%);
 }
 
-/* 暗角效果 */
-.vignette {
-  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.45) 100%);
+.vinyl-disc::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: repeating-radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.06) 0px,
+    rgba(255, 255, 255, 0.06) 1px,
+    transparent 3px
+  );
+  opacity: 0.25;
+  pointer-events: none;
 }
 
-.glass-toolbar {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.vinyl-disc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at 30% 15%,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.02) 40%,
+    transparent 60%
+  );
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.vinyl-label {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 2px 16px rgba(0, 0, 0, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.vinyl-label::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: repeating-radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.12) 0px,
+    rgba(255, 255, 255, 0.12) 1px,
+    transparent 2px
+  );
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.vinyl-label::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70%;
+  height: 70%;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  opacity: 0.6;
+}
+
+.label-mark {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.spindle {
+  background: radial-gradient(circle at 30% 30%, #c9c9c9, #9a9a9a 60%, #6f6f6f);
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    inset 0 1px 2px rgba(255, 255, 255, 0.35);
 }
 
-/* 控制按钮 hover 效果 */
-.ctrl-btn {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  transform: scale(1.08);
-}
-.ctrl-btn:active {
-  transform: scale(0.95);
+/* 指针在移动时更自然的微小阴影 */
+.tonearm {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25));
 }
 
-/* 主播放按钮光环 */
-.main-play-btn {
-  box-shadow:
-    0 0 30px rgba(236, 72, 153, 0.25),
-    0 8px 32px rgba(139, 92, 246, 0.2);
-  transition: box-shadow 0.3s ease;
-}
-.main-play-btn:hover {
-  box-shadow:
-    0 0 40px rgba(236, 72, 153, 0.35),
-    0 0 60px rgba(139, 92, 246, 0.15),
-    0 8px 32px rgba(139, 92, 246, 0.25);
+.arm-pivot {
+  background: conic-gradient(from 180deg at 50% 50%, #d7d7d7, #bdbdbd, #9f9f9f, #d7d7d7);
 }
 
-/* 圆形可视化器封面翻转动画 */
-.circular-cover {
-  will-change: transform, box-shadow;
-  transition: box-shadow 0.3s ease;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+.arm-shaft {
+  background: linear-gradient(180deg, #d6d6d6 0%, #bfbfbf 40%, #9c9c9c 100%);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.2);
 }
 
-.circular-cover img {
-  will-change: transform;
+.counterweight {
+  background: radial-gradient(circle at 30% 30%, #bfbfbf, #8f8f8f 60%, #6f6f6f);
+}
+
+.headshell {
+  background: linear-gradient(135deg, #6b7280, #374151);
+}
+
+.cartridge {
+  background: linear-gradient(180deg, #8b8b8b, #5f5f5f);
+}
+
+.stylus {
+  background: linear-gradient(180deg, #e5e7eb, #9ca3af);
+}
+
+.particle {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(180deg);
+  }
+}
+
+.sound-wave {
+  animation: soundWave 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes soundWave {
+  0% {
+    height: 1rem;
+  }
+  100% {
+    height: 3rem;
+  }
 }
 
 .lyrics-container {
-  mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    black 12%,
-    black 88%,
+    black 15%,
+    black 85%,
     transparent 100%
   );
 }
@@ -900,53 +889,102 @@ onUnmounted(() => {
 
 .lyric-line {
   line-height: 1.8;
-  padding: 0.5rem 1.5rem;
-  margin-bottom: 0.25rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
   transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   white-space: pre-line;
 }
 
-.lyric-line.current {
-  @apply text-primary;
-  text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(139, 92, 246, 0.08));
-  transform: scale(1.06);
-}
-.lyric-line.current .lyric-text {
-  @apply text-xl font-semibold lg:text-2xl;
-}
-.lyric-line.current .lyric-sub {
-  @apply text-primary/60 mt-1 text-sm lg:text-base;
+.lyric-line:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
-.lyric-sub {
-  @apply text-primary/40 mt-0.5 text-sm;
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 专辑封面旋转动画 */
+.album-wrapper {
+  transition: transform 0.3s ease;
+}
+
+.album-wrapper:hover {
+  transform: scale(1.05);
+}
+
+/* 粒子效果增强 */
+.particle-container .particle {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 255, 255, 0.2) 70%,
+    transparent 100%
+  );
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+/* 歌词高亮效果 */
+.lyric-line.scale-110 {
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(139, 92, 246, 0.1));
+}
+
+/* 按钮悬停效果增强 */
+.glass-button:active {
+  transform: scale(0.95);
+}
+
+/* 进度条增强样式 */
+.progress-bar-thumb {
+  transition: all 0.2s ease;
+}
+
+.progress-bar-thumb:hover {
+  transform: translateX(-50%) translateY(-50%) scale(1.2);
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.6);
+}
+
+/* 响应式设计 */
 @media (max-width: 1024px) {
-  .player-left-panel {
+  .drawer-content {
+    flex-direction: column;
+  }
+
+  .left-panel,
+  .right-panel {
     width: 100%;
+  }
+
+  .album-cover {
+    width: 16rem;
+    height: 16rem;
   }
 }
 
-/* 拖动提示框动画 */
-.fade-scale-enter-active,
-.fade-scale-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
+@media (max-width: 768px) {
+  .album-cover {
+    width: 12rem;
+    height: 12rem;
+  }
 
-.fade-scale-enter-from,
-.fade-scale-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.9);
-}
-
-/* 拖动预览卡片样式 */
-.drag-preview {
-  min-width: 280px;
-  max-width: 500px;
-  box-shadow:
-    0 25px 50px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  .lyric-line {
+    font-size: 0.875rem;
+  }
 }
 </style>

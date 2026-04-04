@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { useSettingsStore } from '@/stores/modules/settings'
 import GlassSelect from '@/components/Ui/GlassSelect.vue'
-import { useI18n } from 'vue-i18n'
 
 const settings = useSettingsStore()
-const { t } = useI18n()
 
 const state = reactive({
   bg1: settings.ultimate.bg1,
@@ -102,79 +100,79 @@ const previewStyle = computed(() => {
 
 <template>
   <div class="glass-card p-4">
-    <h3 class="mb-4 text-lg font-semibold text-primary">{{ t('components.background.ultimate.title') }}</h3>
+    <h3 class="mb-4 text-lg font-semibold text-white">Ultimate 设置</h3>
 
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div class="space-y-6">
         <div>
-          <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.ultimate.background') }}</label>
+          <label class="mb-2 block text-sm text-white/80">背景</label>
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-2">
               <input v-model="bg1" type="color" class="h-9 w-full rounded" />
-              <input v-model="bg1" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="bg1" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="bg2" type="color" class="h-9 w-full rounded" />
-              <input v-model="bg2" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="bg2" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
           </div>
         </div>
 
         <div>
-          <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.ultimate.colors') }}</label>
+          <label class="mb-2 block text-sm text-white/80">颜色</label>
           <div class="grid grid-cols-3 gap-3">
             <div class="space-y-2">
               <input v-model="color1" type="color" class="h-9 w-full rounded" />
-              <input v-model="color1" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color1" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="color2" type="color" class="h-9 w-full rounded" />
-              <input v-model="color2" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color2" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="color3" type="color" class="h-9 w-full rounded" />
-              <input v-model="color3" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color3" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="color4" type="color" class="h-9 w-full rounded" />
-              <input v-model="color4" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color4" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="color5" type="color" class="h-9 w-full rounded" />
-              <input v-model="color5" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="color5" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="space-y-2">
               <input v-model="interactiveColor" type="color" class="h-9 w-full rounded" />
-              <input v-model="interactiveColor" type="text" class="w-full rounded bg-white/10 p-2 text-primary" />
+              <input v-model="interactiveColor" type="text" class="w-full rounded bg-white/10 p-2 text-white" />
             </div>
           </div>
         </div>
 
         <div>
-          <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.common.params') }}</label>
+          <label class="mb-2 block text-sm text-white/80">参数</label>
           <div class="space-y-3">
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.ultimate.circleSize') }}</span>
-              <input v-model="circleSize" type="text" class="w-24 rounded bg-white/10 p-2 text-primary" />
+              <span class="w-24 text-xs text-white/70">尺寸</span>
+              <input v-model="circleSize" type="text" class="w-24 rounded bg-white/10 p-2 text-white" />
             </div>
             <div class="flex items-center gap-3">
-              <span class="w-24 text-xs text-primary/70">{{ t('components.background.ultimate.blending') }}</span>
+              <span class="w-24 text-xs text-white/70">混合模式</span>
               <GlassSelect v-model="blending" :options="blendingOptions" />
             </div>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
-          <p class="text-xs text-primary/60">{{ t('components.background.ultimate.tip') }}</p>
-          <button class="rounded bg-white/10 px-3 py-2 text-primary hover:bg-white/20" @click="reset">{{ t('components.background.common.reset') }}</button>
+          <p class="text-xs text-white/60">参数与颜色实时应用到背景。</p>
+          <button class="rounded bg-white/10 px-3 py-2 text-white hover:bg-white/20" @click="reset">重置默认</button>
         </div>
       </div>
 
       <div>
-        <label class="mb-2 block text-sm text-primary/80">{{ t('components.background.common.preview') }}</label>
+        <label class="mb-2 block text-sm text-white/80">预览</label>
         <div class="relative overflow-hidden rounded-lg border border-white/10 bg-black/20">
           <div class="aspect-video w-full" :style="previewStyle"></div>
-          <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-black/30 px-3 py-2 text-xs text-primary/80">
+          <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-black/30 px-3 py-2 text-xs text-white/80">
             <span>{{ bg1 }} · {{ bg2 }}</span>
             <span>{{ blending }} / {{ circleSize }}</span>
           </div>

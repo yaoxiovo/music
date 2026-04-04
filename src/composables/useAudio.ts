@@ -1,8 +1,4 @@
-/**
- * 音频播放器组合式函数
- * 提供播放控制、音量控制、进度控制、播放列表管理、键盘快捷键等完整播放器功能
- * 是 audioStore 的响应式封装层，供组件直接使用
- */
+// 音频播放器组合式API
 import { Song, PlayMode } from '@/stores/interface'
 import { formatTime } from '@/utils/audioUtils'
 
@@ -19,10 +15,8 @@ export const useAudio = () => {
   const isPlaying = computed(() => audioStore.getIsPlaying)
   const isLoading = computed(() => audioStore.audio.isLoading)
   const playlist = computed(() => audioStore.getPlaylist)
-  const playHistory = computed(() => audioStore.audio.playHistory)
   const playMode = computed(() => audioStore.getPlayMode)
   const volume = computed(() => audioStore.getVolume)
-  const isMuted = computed(() => audioStore.getIsMuted)
   const currentTime = computed(() => audioStore.getCurrentTime)
   const duration = computed(() => audioStore.getDuration)
   const progress = computed(() => audioStore.getProgress)
@@ -51,13 +45,13 @@ export const useAudio = () => {
   const playModeIcon = computed(() => {
     switch (playMode.value) {
       case PlayMode.LIST:
-        return 'icon-[mdi--repeat]'
+        return 'i-mdi-repeat'
       case PlayMode.SINGLE:
-        return 'icon-[mdi--repeat-once]'
+        return 'i-mdi-repeat-once'
       case PlayMode.RANDOM:
-        return 'icon-[mdi--shuffle]'
+        return 'i-mdi-shuffle'
       default:
-        return 'icon-[mdi--repeat]'
+        return 'i-mdi-repeat'
     }
   })
 
@@ -259,10 +253,8 @@ export const useAudio = () => {
     isPlaying,
     isLoading,
     playlist,
-    playHistory,
     playMode,
     volume,
-    isMuted,
     currentTime,
     duration,
     progress,

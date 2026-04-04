@@ -1,301 +1,198 @@
-<div align="center">
+🎵 **提示：** 旧项目已迁移至分支 👇
+[GlassMusicPlayer/GlassMusicPlayer-V1 分支](https://github.com/XiangZi7/GlassMusicPlayer/tree/GlassMusicPlayer-V1)
+[GlassMusicPlayer/kmmusic 分支](https://github.com/XiangZi7/GlassMusicPlayer/tree/kmmusic)
 
-# GlassMusicPlayer
+# Glass Music Player
 
-**一款基于毛玻璃设计的现代化音乐播放器**
+![alt text](images/image.png)
 
-<p align="center">
-<img src="https://img.shields.io/badge/Vue-3.5-4FC08D?style=for-the-badge&logo=vue.js&logoColor=white" />
-<img src="https://img.shields.io/badge/Vite-7-646CFF?style=for-the-badge&logo=vite&logoColor=white" />
-<img src="https://img.shields.io/badge/Tailwind-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" />
-<img src="https://img.shields.io/badge/Pinia-Latest-FFD859?style=for-the-badge" />
-<img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-</p>
+### 介绍 📖
 
-<p align="center">
-<img src="https://img.shields.io/badge/Vue_Router-4-4FC08D?style=flat-square" />
-<img src="https://img.shields.io/badge/Vue_I18n-11-4FC08D?style=flat-square" />
-<img src="https://img.shields.io/badge/GSAP-Animation-88CE02?style=flat-square" />
-<img src="https://img.shields.io/badge/Artplayer-Video-FF6B6B?style=flat-square" />
-<img src="https://img.shields.io/badge/HLS.js-Streaming-1E90FF?style=flat-square" />
-<img src="https://img.shields.io/badge/Swiper-Carousel-6332F6?style=flat-square" />
-<img src="https://img.shields.io/badge/Three.js-3D-000000?style=flat-square" />
-<img src="https://img.shields.io/badge/Lottie-Animation-00DDB3?style=flat-square" />
-<img src="https://img.shields.io/badge/Web_Audio_API-Visualization-FF9500?style=flat-square" />
-</p>
+**Glass Music Player** 是一款简约高颜值的毛玻璃风格 Web 音乐播放器，支持 PC & Mobile 响应式体验。项目基于 **Vue 3.5**、**Vite 7**、**Pinia**、**Tailwind CSS 4** 构建，并配合 **Vue Router**、**Vue I18n** 等生态，提供流畅的导航与国际化支持。页面采用现代化设计与动效，兼顾性能与可维护性。
 
-<p align="center">
-  <a href="https://gm-doc.pages.dev"><img alt="项目文档" src="https://img.shields.io/badge/📘%20项目文档-在线阅读-8b5cf6?style=for-the-badge"></a>
-  <a href="https://gmpd.netlify.app/"><img alt="备用文档" src="https://img.shields.io/badge/📘%20备用文档-备用线路-4f46e5?style=for-the-badge"></a>
-  <a href="https://topm.pages.dev/"><img alt="在线预览" src="https://img.shields.io/badge/🚀%20在线预览-立即体验-ec4899?style=for-the-badge"></a>
-  <a href="https://github.com/XiangZi7/KM-Music-Player"><img alt="GitHub" src="https://img.shields.io/badge/💻%20GitHub-源码仓库-181717?style=for-the-badge&logo=github"></a>
-  <a href="https://neteasecloudmusicapi.vercel.app/#/"><img alt="API文档" src="https://img.shields.io/badge/🔌%20API文档-接口参考-0284c7?style=for-the-badge"></a>
-</p>
+### 系统需求 ⚙️
 
-![预览图](images/home.png)
+- **Node.js** 版本需大于等于 **22**。
 
-</div>
+### 在线预览 👀
 
-> [!TIP]
-> 旧版本已迁移至分支：[GlassMusicPlayer-V1](https://github.com/XiangZi7/GlassMusicPlayer/tree/GlassMusicPlayer-V1) | [kmmusic](https://github.com/XiangZi7/GlassMusicPlayer/tree/kmmusic)
+- [Netlify 预览](https://topm.netlify.app)
 
----
+### 代码仓库 ⭐
 
-## ✨ 核心特性
+- [GitHub 代码仓库](https://github.com/XiangZi7/KM-Music-Player)
 
-- 🎨 **毛玻璃设计** - 现代化 UI，精致视觉效果
-- 🌓 **双主题切换** - 浅色/深色主题，支持系统跟随，三种背景主题
-- 🎵 **音频可视化** - 实时频谱/波形/圆形可视化，自适应主题配色
-- 🎭 **高级动画交互** - 共享元素过渡、3D封面翻转、侧边栏滑动指示器、黑胶唱片动画
-- 📱 **响应式布局** - 完美适配桌面端与移动端
-- 🌍 **国际化支持** - 中文 / English / 日本語
+### 项目功能 🔨
 
-## 🎬 主要功能
+- 主题与视觉
+  - 浅/暗双主题重构：使用 `:root` CSS 变量与 `html.dark`，提升全站一致性
+  - 背景主题：新增 Ultimate 背景（可配置），Aurora/ColorBends/Ultimate 三选一
+  - 设置页新增背景主题面板与主题模式切换
+- 主页与列表
+  - 推荐歌单卡片统一尺寸，支持左右箭头翻页，首屏仅显示右箭头
+  - GlassSelect 下拉重构：玻璃质感、暗黑适配、可读性增强
+  - 分页组件抽象（Pagination）：搜索与评论弹窗共用
+  - 播放列表气泡（PlaylistBubble）：拖拽排序、下一首播放、批量删除、图标化操作
+- 搜索与骨架
+  - 搜索下拉联想：按接口 `result.order` 展示 songs/playlists，点击歌曲直接搜索，歌单直达详情
+  - 歌单/MV 列表加载骨架，组件内请求也能正常显示（覆盖层方式）
+- 详情与发现
+  - 歌曲详情页：歌词全文、相似歌曲/相似歌单、评论弹窗
+  - 歌手页：头像与信息英雄区、热门歌曲、专辑列表、播放热门/随机播放
+  - 专辑页：封面英雄区、发行信息、简介折叠、曲目列表、播放/随机播放
+  - 排行榜页：`topSong` 多类型切换（全部/华语/欧美/日本/韩国）
+- 交互与导航
+  - 侧边栏分组：探索/我的音乐/系统，入口更清晰
+  - 顶部导航外链：项目仓库与影视站直达
+- 评论与歌词
+  - 评论弹窗：分页、IP归属与时间、楼中楼显示
+  - 底部歌词：设置可选显示原文/译文/罗马音（最多两行）
+- 移动端支持
+  - 响应式布局与触控优化
+  - 移动端导航与界面适配（底部/抽屉导航等，不同页面自适应）
+  - 支持生成移动端截图：`pnpm screenshots:mobile`（可通过 `APP_URL` 指定预览地址）
+ - 多语言
+  - 设置页提供语言切换（中文 / English / 日本語），并持久化保存
 
-| 模块 | 功能亮点 |
-|------|---------|
-| 🎵 **播放器** | 黑胶唱片动画 · 唱臂联动 · 3D封面翻转切歌 · 共享元素过渡 · 实时音频可视化 · 音质选择 · 歌词同步 · 进度拖拽 |
-| 🏠 **发现音乐** | 首页推荐 · 排行榜 · 艺术家 · 新碟 · 歌单 |
-| 🔍 **搜索** | 热门搜索 · 搜索历史 · 实时联想 · 歌曲/歌单/MV/艺术家 |
-| 📱 **移动端** | 底部导航 · 全屏播放器抽屉 · 滑动切换 · 触控手势 |
+### 安装使用步骤 📔
 
-<details>
-<summary><strong>📋 查看完整功能列表</strong></summary>
-<br/>
+- Clone
 
-| 模块 | 功能 |
-|------|------|
-| **主题视觉** | 双主题模式 · 系统跟随 · 三种背景主题 · 毛玻璃效果 · 动态颜色适配 · 路由过渡动画 |
-| **首页列表** | 卡片化布局 · 推荐歌单 · 骨架屏加载 · 图片懒加载 |
-| **排行榜** | 多类型切换（华语/欧美/日本/韩国） · 分页加载 |
-| **搜索** | 热门搜索 · 搜索历史 · 实时联想 · 分页浏览 · 外部点击关闭 · 滑动切换 |
-| **歌曲详情** | 歌词全文 · 相似推荐 · 评论弹窗 · 相关MV |
-| **艺术家** | 类型/地区/首字母筛选 · 分页 · 英雄区动画 · 热门/专辑Tab |
-| **专辑** | 封面英雄区 · 发行信息 · 简介折叠 · 曲目列表 |
-| **MV** | 高清播放 · HLS流媒体 · 相关推荐 |
-| **播放器** | 黑胶唱片 · 唱臂动画 · 3D封面翻转 · 共享元素过渡 · 实时音频可视化(频谱/波形/圆形) · 音质选择 · 进度拖拽 · 背景切换 · 设备状态 |
-| **歌词** | 多语言切换 · 字体缩放 · 自动滚动 · 拖动定位 · 时间预览 |
-| **评论** | 分页浏览 · IP归属地 · 楼中楼回复 |
-| **播放列表** | 拖拽排序 · 下一首播放 · 批量删除 · 清空列表 · 历史记录管理 |
-| **音频可视化** | Web Audio API · 频谱/波形/圆形三种样式 · 实时频谱分析 · 自适应主题配色 · 圆形频谱集成专辑封面 |
-| **动画交互** | 共享元素过渡 · 3D封面翻转 · 侧边栏滑动指示器 · 黑胶唱片旋转 · 唱臂联动 |
-| **移动端** | 响应式 · 底部导航 · 播放器抽屉 · 列表/历史滑动切换 · 艺术家列表 · 搜索结果滑动切换 |
-| **多语言** | 简体中文 ✅ · English ✅ · 日本語 ✅ |
+# Github
 
-</details>
-
----
-
-## 📦 快速开始
-
-> **环境要求：** Node.js >= 22，pnpm >= 10
+使用 Git 克隆项目到本地：
 
 ```bash
-# 克隆项目
 git clone https://github.com/XiangZi7/GlassMusicPlayer.git
+```
+
+安装依赖
+
+进入项目目录并安装所需的依赖：
+
+```bash
 cd GlassMusicPlayer
-
-# 安装依赖
 pnpm install
+```
 
-# 配置环境变量
-cp .env.example .env
+修改.env的VITE_APP_BASE_API
 
-# 启动开发服务器
+```
+# 本地环境接口地址
+VITE_APP_BASE_API = '你的网易云接口地址'
+```
+
+启动开发服务器
+
+启动本地开发服务器，为你提供实时预览：
+
+```bash
 pnpm dev
 ```
 
-### 🔧 环境变量配置
+文档说明
 
-项目提供了 `.env.example` 模板文件，请根据需要复制并修改：
+你可以查阅 [网易云音乐 API 文档](https://neteasecloudmusicapi.vercel.app/#/)
+以获取更多信息和接口使用说明（可能需要魔法上网）。
 
-```bash
-# 开发环境
-cp .env.example .env.development
+### 项目截图 📷
 
-# 生产环境
-cp .env.example .env.production
-```
+![项目截图 0](images/image.png)
 
-**`.env.development` 示例：**
+![项目截图 1](images/image-1.png)
 
-```ini
-VITE_USER_NODE_ENV = development
-VITE_PUBLIC_PATH = /
-VITE_ROUTER_MODE = history
-VITE_APP_BASE_API = 'http://localhost:3000'
-```
+![项目截图 2](images/image-2.png)
 
-**`.env.production` 示例：**
+![项目截图 17](images/image-18.png)
 
-```ini
-VITE_USER_NODE_ENV = production
-VITE_PUBLIC_PATH = /
-# 静态托管（如 GitHub Pages）建议使用 hash 模式
-VITE_ROUTER_MODE = hash
-VITE_APP_BASE_API = 'https://your-api-domain.com'
-```
+![项目截图 17](images/image-19.png)
 
-> [!NOTE]
-> - `.env` 为通用配置，`.env.development` / `.env.production` 为特定环境配置，优先级更高
-> - 所有 `.env.*`（除 `.env.example`）已被 `.gitignore` 忽略，不会提交到仓库
-> - 变量必须以 `VITE_` 开头才能在客户端代码中使用
+![项目截图 17](images/image-20.png)
 
-### 📜 可用脚本
+![项目截图 17](images/image-21.png)
 
-| 命令 | 说明 |
-|------|------|
-| `pnpm dev` | 启动开发服务器 |
-| `pnpm build` | 构建生产环境产物 |
-| `pnpm build:test` | 构建测试环境产物 |
-| `pnpm preview` | 本地预览生产构建 |
-| `pnpm lint` | ESLint 检查并自动修复 |
-| `pnpm format` | Prettier 格式化代码 |
+![项目截图 3](images/image-3.png)
 
----
+![项目截图 4](images/image-4.png)
 
-## 📷 项目截图
+![项目截图 5](images/image-5.png)
 
-<details>
-<summary><strong>🖥️ 桌面端</strong></summary>
-<br/>
+![项目截图 6](images/image-6.png)
 
-<table>
-  <tr>
-    <td><img src="images/image-77.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-78.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-79.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-1.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-2.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-20.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-21.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-3.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-4.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-5.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-6.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-7.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-8.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-9.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-10.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-11.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-12.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/image-13.png" alt="桌面端截图" width="100%"></td>
-    <td><img src="images/image-14.png" alt="桌面端截图" width="100%"></td>
-  </tr>
-</table>
+![项目截图 7](images/image-7.png)
 
-</details>
+![项目截图 8](images/image-8.png)
 
-<details>
-<summary><strong>📱 移动端</strong></summary>
-<br/>
+![项目截图 9](images/image-9.png)
 
-<table>
-  <tr>
-    <td><img src="images/mobile/image-1.jpg" alt="移动端截图" width="100%"></td>
-    <td><img src="images/mobile/image-2.jpg" alt="移动端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/mobile/image-11.jpg" alt="移动端截图" width="100%"></td>
-    <td><img src="images/mobile/image-4.jpg" alt="移动端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/mobile/image-5.jpg" alt="移动端截图" width="100%"></td>
-    <td><img src="images/mobile/image-6.jpg" alt="移动端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/mobile/image-7.jpg" alt="移动端截图" width="100%"></td>
-    <td><img src="images/mobile/image-8.jpg" alt="移动端截图" width="100%"></td>
-  </tr>
-  <tr>
-    <td><img src="images/mobile/image-9.jpg" alt="移动端截图" width="100%"></td>
-    <td><img src="images/mobile/image-10.jpg" alt="移动端截图" width="100%"></td>
-  </tr>
-</table>
+![项目截图 10](images/image-10.png)
 
-</details>
+![项目截图 11](images/image-11.png)
 
----
+![项目截图 12](images/image-12.png)
 
-## ❓ 常见问题
+![项目截图 13](images/image-13.png)
 
-<details>
-<summary><strong>如何解决启动错误？</strong></summary>
-<br/>
-请确保 Node.js 版本 >= 22，并检查依赖安装时的错误信息。
-</details>
+![项目截图 14](images/image-14.png)
 
-<details>
-<summary><strong>播放器如何更改主题？</strong></summary>
-<br/>
-在侧边菜单栏选择「设置」，可切换主题模式和背景主题。
-</details>
+![项目截图 15](images/image-15.png)
 
-<details>
-<summary><strong>API 接口从哪里获取？</strong></summary>
-<br/>
+![项目截图 16](images/image-16.png)
 
-使用 [网易云音乐 API](https://neteasecloudmusicapi.vercel.app/#/)（可能需魔法上网）
-</details>
+![项目截图 17](images/image-17.png)
 
----
+### 移动端截图 📱
 
-## ⚠️ 免责声明
+![移动端截图 1](images/mobile/image-1.png)
+![移动端截图 2](images/mobile/image-2.png)
+![移动端截图 3](images/mobile/image-3.png)
+![移动端截图 4](images/mobile/image-4.png)
+![移动端截图 5](images/mobile/image-5.png)
+![移动端截图 6](images/mobile/image-6.png)
 
-本项目仅用于学习和研究目的。使用该项目的用户需自行承担相关风险。本项目所使用的相关 API 和数据源均为第三方提供，使用时请遵循相关法律法规及第三方的使用条款。**本项目不得用于任何商业目的**，我们不对任何由于使用本项目而引起的直接或间接的损失或法律责任负责。
+### 项目后台接口 🧩
 
----
+- [https://neteasecloudmusicapi.vercel.app/#/](https://neteasecloudmusicapi.vercel.app/#/)
+  （可能需魔法上网）
 
-## 💬 交流与支持
+### 免责声明 ⚠️
 
-<table>
-<tr>
-<td align="center">
-<strong>QQ 交流2群</strong><br/><br/>
-<img src="https://github.com/user-attachments/assets/d74218a8-8731-4f2a-9925-feb96ca46929" alt="QQ2群" width="350" />
-</td>
-<td align="center">
-<strong>QQ 交流群</strong><br/><br/>
-<img src="https://github.com/user-attachments/assets/83786a34-cf75-4268-9f28-7ceb180cc329" alt="QQ群" width="350" />
-</td>
-</tr>
-</table>
+GlassMusicPlayer项目仅用于学习和研究目的。使用该项目的用户需自行承担相关风险。本项目所使用的相关API和数据源均为第三方提供，使用时请遵循相关法律法规及第三方的使用条款。本项目不得用于任何商业目的，我们不对任何由于使用本项目而引起的直接或间接的损失或法律责任负责。
 
-## 🤝 友情链接
+请在使用之前仔细阅读该免责声明，并确保遵守以上条款。谢谢您的理解与支持。
 
-- [HotPulse](https://hotpulse.pages.dev/) - 全网热点聚合平台
+### QQ交流群 👨‍👨‍👦‍👦
 
-## 📈 Star 趋势
+![1686722147442.png](https://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/2ef2a97c45df4a6fa5c78b34a28a42fc~tplv-k3u1fbpfcp-watermark.image#?w=238&h=250&s=10821&e=png&a=1&b=f8f8f8)
+
+### 捐赠（❤）
+
+<div>
+  <p>如果觉得该项目能对你有帮助或喜欢，欢迎投食。</p>
+  <table border="1" cellspacing="0" cellpadding="8">
+    <tr>
+      <td >
+        <strong>支付宝</strong><br/>
+        <img src="https://github.com/user-attachments/assets/46d07565-72b9-4d48-bea2-4a7242e5ada0" alt="Alipay QRcode" width="170" />
+      </td>
+      <td >
+        <strong>微信</strong><br/>
+        <img src="https://github.com/user-attachments/assets/7c3e1e96-cfc3-460d-b534-8a1da636cc09" alt="Wechat QRcode" width="170" />
+      </td>
+    </tr>
+  </table>
+</div>
+
+### GitHub Star 趋势
 
 [![Stargazers over time](https://starchart.cc/XiangZi7/KM-Music-Player.svg?variant=adaptive)](https://starchart.cc/XiangZi7/KM-Music-Player)
 
----
+### 常见问题 (FAQ) ❓
 
-<div align="center">
+- 如何解决启动错误？
 
-**📄 License**
+请确保你的 Node.js 版本满足要求，并检查安装依赖时的错误信息。
 
-[PolyForm-Noncommercial-1.0.0](LICENSE)
+- 播放器如何更改主题？
 
-Made with ❤️ by [XiangZi7](https://github.com/XiangZi7)
-
-</div>
+在侧边菜单栏中选择“主题”选项，然后你可以选择不同的主题风格。

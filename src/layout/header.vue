@@ -1,29 +1,30 @@
 <script setup lang="ts">
+import LoginDialog from '@/components/Auth/LoginDialog.vue'
+import { useUserStore } from '@/stores/modules/user'
+import { useGlobalStore } from '@/stores/modules/global'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+const navItems = [
+  { to: '/', labelKey: 'layout.nav.home', accent: true },
+  { to: '/discover', labelKey: 'layout.nav.discover' },
+  { to: '/my-music', labelKey: 'layout.nav.myMusic' },
+]
 
 const router = useRouter()
 const { t } = useI18n()
+// 头部本地状态：搜索输入值、登录弹窗开关、历史下拉开关
 const state = reactive({
   searchQuery: '',
   showLogin: false,
   historyOpen: false,
-  searchFocused: false,
 })
-const { searchQuery, showLogin, historyOpen, searchFocused } = toRefs(state)
+// 解构为响应式引用，便于模板绑定
+const { searchQuery, showLogin, historyOpen } = toRefs(state)
+// 用户与全局 store，引入全局搜索历史
 const userStore = useUserStore()
 const globalStore = useGlobalStore()
-const { searchHistory, theme } = storeToRefs(globalStore)
-const themeIcon = computed(() => {
-  if (theme.value === 'system') return 'icon-[mdi--theme-light-dark]'
-  if (theme.value === 'dark') return 'icon-[mdi--weather-night]'
-  return 'icon-[mdi--weather-sunny]'
-})
-const cycleTheme = () => {
-  const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
-  const idx = order.indexOf(theme.value)
-  globalStore.setTheme(order[(idx + 1) % 3])
-}
+const { searchHistory } = storeToRefs(globalStore)
+// 回车搜索：写入搜索历史，关闭下拉，并跳转到搜索页
 const handleSearchEnter = () => {
   const q = state.searchQuery.trim()
   if (!q) return
@@ -31,16 +32,11 @@ const handleSearchEnter = () => {
   state.historyOpen = false
   router.push({ path: '/search', query: { q } })
 }
+// 聚焦时如果有历史则打开下拉
 const openHistoryIfAny = () => {
-  state.searchFocused = true
-  if (searchHistory.value.length > 0) {
-    updateDropdownPos()
-    state.historyOpen = true
-  }
+  state.historyOpen = searchHistory.value.length > 0
 }
-const onSearchBlur = () => {
-  state.searchFocused = false
-}
+// 选择历史项后直接填充并执行搜索
 const selectHistory = (q: string) => {
   state.searchQuery = q
   handleSearchEnter()
@@ -49,274 +45,134 @@ const clearSearch = () => {
   state.searchQuery = ''
   state.historyOpen = false
 }
+// 搜索框容器用于点击外部关闭下拉
 const rootRef = ref<HTMLElement | null>(null)
-const dropdownRef = ref<HTMLElement | null>(null)
-const dropdownStyle = ref({ top: '0px', left: '0px', width: '0px' })
-const updateDropdownPos = () => {
-  const el = rootRef.value
-  if (!el) return
-  const rect = el.getBoundingClientRect()
-  dropdownStyle.value = {
-    top: `${rect.bottom + 8}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-  }
-}
 const onDocClick = (e: Event) => {
   const el = rootRef.value
-  const dd = dropdownRef.value
   if (!el) return
-  const target = e.target as Node
-  if (el.contains(target)) return
-  if (dd && dd.contains(target)) return
-  state.historyOpen = false
+  if (!el.contains(e.target as Node)) state.historyOpen = false
 }
+// 监听与清理：文档点击关闭下拉
 onMounted(() => {
   document.addEventListener('pointerdown', onDocClick)
 })
 onUnmounted(() => document.removeEventListener('pointerdown', onDocClick))
 </script>
 <template>
-  <header class="glass-nav m-3 mx-4 flex items-center justify-between gap-4 px-4 py-4">
-    <!-- 左侧：Logo + 导航 -->
-    <div class="flex items-center gap-5">
+  <header class="glass-nav m-4 flex items-center justify-between p-4">
+    <!-- 左侧菜单栏 -->
+    <div class="flex items-center space-x-6">
       <!-- Logo -->
-      <div class="flex items-center gap-2.5">
-        <img src="/logo.svg" alt="logo" class="w-9" />
-        <h1 class="text-primary text-xl font-bold">Glass Music</h1>
+      <div class="flex items-center space-x-3">
+        <img src="/logo.png" alt="logo" class="w-10" />
+        <h1 class="text-xl font-bold text-white">Glass Music Player</h1>
       </div>
 
-      <!-- 前进/后退按钮组 -->
-      <div
-        class="border-glass-subtle hidden items-center overflow-hidden rounded-[10px] border md:flex"
-      >
-        <Button
-          variant="ghost"
-          size="none"
-          rounded="none"
-          class="border-glass-subtle h-[30px] w-8 justify-center border-r"
-          aria-label="back"
-          @click="router.back()"
-        >
-          <span class="icon-[mdi--chevron-left] h-4.5 w-4.5"></span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="none"
-          rounded="none"
-          class="h-[30px] w-8 justify-center"
-          aria-label="forward"
-          @click="router.forward()"
-        >
-          <span class="icon-[mdi--chevron-right] h-4.5 w-4.5"></span>
-        </Button>
-      </div>
-
-      <!-- 外链菜单 -->
-      <nav class="hidden items-center gap-3 xl:flex">
-        <Button
-          v-for="link in [
-            {
-              href: 'https://github.com/XiangZi7/GlassMusicPlayer',
-              icon: 'icon-[mdi--github]',
-              label: t('layout.nav.repo'),
-            },
-            {
-              href: 'https://miraitv.pages.dev',
-              icon: 'icon-[mdi--movie-open-play]',
-              label: t('layout.nav.movies'),
-            },
-            {
-              href: 'https://gm-doc.pages.dev',
-              icon: 'icon-[mdi--text-box-outline]',
-              label: t('layout.nav.projectDocs'),
-            },
-            {
-              href: 'https://gmpd.netlify.app',
-              icon: 'icon-[mdi--text-box-outline]',
-              label: t('layout.nav.backupDocs'),
-            },
+      <!-- 导航菜单 -->
+      <nav class="hidden items-center space-x-2 md:flex">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          class="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          :class="[
+            item.accent ? 'glass-button text-white' : 'text-white/70 hover:text-white',
+            $route.path === item.to ? 'bg-white/10 text-white' : '',
           ]"
-          :key="link.href"
-          :href="link.href"
+        >
+          {{ t(item.labelKey) }}
+        </RouterLink>
+      </nav>
+      <!-- 外链菜单 -->
+      <nav class="hidden items-center space-x-2 md:flex">
+        <a
+          href="https://github.com/XiangZi7/GlassMusicPlayer"
           target="_blank"
           rel="noopener noreferrer"
-          size="none"
-          rounded="lg"
-          class="nav-ext-link gap-1.5 px-4 py-1.5 text-sm font-medium transition-opacity hover:opacity-90"
-          :title="link.label"
+          class="glass-button rounded-lg px-4 py-2 text-sm font-medium text-white"
         >
-          <span :class="[link.icon, 'h-4 w-4']"></span>
-          <span class="link-label">{{ link.label }}</span>
-        </Button>
+          <span class="icon-[mdi--github] mr-2 h-4 w-4"></span>
+          {{ t('layout.nav.repo') }}
+          <span class="icon-[mdi--open-in-new] ml-2 h-4 w-4"></span>
+        </a>
+        <a
+          href="https://miraitv.netlify.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="glass-button rounded-lg px-4 py-2 text-sm font-medium text-white"
+        >
+          <span class="icon-[mdi--movie-open-play] mr-2 h-4 w-4"></span>
+          {{ t('layout.nav.movies') }}
+          <span class="icon-[mdi--open-in-new] ml-2 h-4 w-4"></span>
+        </a>
       </nav>
     </div>
 
     <!-- 右侧功能区 -->
-    <div class="flex items-center gap-2.5">
+    <div class="flex items-center space-x-4">
       <!-- 搜索框 -->
-      <div
-        ref="rootRef"
-        class="bg-button-glass hidden items-center gap-2 rounded-[10px] px-3 py-1.5 transition-all duration-300 lg:flex"
-        :class="[
-          searchFocused
-            ? 'border-glass min-w-80 border ring-1 ring-white/5'
-            : 'min-w-60 border border-transparent',
-        ]"
-      >
-        <span
-          class="icon-[mdi--magnify] text-primary h-4 w-4 shrink-0 transition-opacity duration-200"
-          :class="searchFocused || searchQuery ? 'opacity-65' : 'opacity-35'"
-        ></span>
+      <div ref="rootRef" class="glass-card relative hidden min-w-0 items-center px-4 py-2 lg:flex">
+        <span class="icon-[mdi--magnify] mr-2 h-4 w-4 text-white/60"></span>
         <input
           v-model="searchQuery"
           @keyup.enter="handleSearchEnter"
           @focus="openHistoryIfAny"
-          @blur="onSearchBlur"
           type="text"
           :placeholder="t('common.search.placeholder')"
-          class="text-primary placeholder:text-primary/35 min-w-0 flex-1 bg-transparent text-[13px] font-[450] outline-none placeholder:font-normal"
+          class="min-w-0 flex-1 bg-transparent text-sm text-white placeholder-white/50 outline-none pr-10"
         />
-        <Transition name="fade-scale">
-          <Button
-            v-if="searchQuery"
-            variant="ghost"
-            size="none"
-            rounded="lg"
-            class="h-5.5 w-5.5 shrink-0 justify-center opacity-40 hover:opacity-70"
-            :title="t('common.clear')"
-            icon="icon-[mdi--close]"
-            icon-class="h-3.5 w-3.5"
-            @click="clearSearch"
-          />
-        </Transition>
-      </div>
-
-      <!-- 搜索历史下拉 -->
-      <Teleport to="body">
-        <Transition name="dropdown">
-          <div
-            v-if="historyOpen && searchHistory.length"
-            ref="dropdownRef"
-            class="glass-dropdown fixed z-99999 overflow-hidden rounded-2xl p-1 shadow-lg"
-            :style="dropdownStyle"
-          >
-            <ul class="max-h-60 overflow-auto">
-              <li
-                v-for="opt in searchHistory"
-                :key="opt"
-                class="group text-glass-contrast hover:bg-hover-glass relative flex cursor-pointer items-center rounded-[10px] px-2.5 py-2 text-[13px] transition-colors"
-                @mousedown.prevent="selectHistory(opt)"
+        <button
+          class="absolute right-3 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full transition-opacity duration-150"
+          :class="searchQuery ? 'opacity-80 hover:opacity-100' : 'opacity-0 pointer-events-none'"
+          :title="t('common.clear')"
+          @click="clearSearch"
+        >
+          <span class="icon-[mdi--close] h-4 w-4 text-white/70"></span>
+        </button>
+        <div
+          v-if="historyOpen && searchHistory.length"
+          class="glass-dropdown absolute top-full right-0 left-0 z-100000 mt-2 overflow-hidden rounded-2xl shadow-lg"
+        >
+          <ul class="max-h-60 overflow-auto">
+            <li
+              v-for="opt in searchHistory"
+              :key="opt"
+              class="group relative flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-(--glass-dropdown-text) hover:bg-(--glass-hover-item-bg)"
+              @mousedown.prevent="selectHistory(opt)"
+            >
+              <span class="truncate pr-8">{{ opt }}</span>
+              <button
+                class="absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-80"
+                :title="t('common.delete')"
+                @mousedown.stop.prevent="globalStore.removeSearchHistory(opt)"
               >
-                <span class="icon-[mdi--history] mr-2.5 h-3.5 w-3.5 shrink-0 opacity-40"></span>
-                <span class="truncate pr-6">{{ opt }}</span>
-                <Button
-                  variant="ghost"
-                  size="none"
-                  rounded="lg"
-                  icon="icon-[mdi--close]"
-                  icon-class="h-3.5 w-3.5 text-glass-contrast"
-                  class="absolute top-1/2 right-2 h-5.5 w-5.5 -translate-y-1/2 justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-50 hover:opacity-80!"
-                  :title="t('common.delete')"
-                  @mousedown.stop.prevent="globalStore.removeSearchHistory(opt)"
-                />
-              </li>
-            </ul>
-          </div>
-        </Transition>
-      </Teleport>
-
-      <!-- 主题切换 -->
-      <Button
-        variant="ghost"
-        size="icon-md"
-        rounded="lg"
-        class="opacity-60 hover:opacity-100"
-        :title="
-          theme === 'system'
-            ? t('components.settings.themeOptions.system')
-            : theme === 'dark'
-              ? t('components.settings.themeOptions.dark')
-              : t('components.settings.themeOptions.light')
-        "
-        @click="cycleTheme"
-      >
-        <span :class="[themeIcon, 'h-[18px] w-[18px] transition-transform duration-300']"></span>
-      </Button>
+                <span class="icon-[mdi--close] h-4 w-4 text-(--glass-dropdown-text)"></span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
 
       <!-- 用户头像 / 登录按钮 -->
       <div v-if="userStore.isLoggedIn" class="flex items-center gap-2">
-        <img
-          :src="userStore.avatarUrl"
-          alt="avatar"
-          class="h-7 w-7 rounded-full object-cover ring-1 ring-white/10"
-        />
-        <span class="text-primary/90 text-sm">{{ userStore.nickname }}</span>
+        <img :src="userStore.avatarUrl" alt="avatar" class="h-8 w-8 rounded-full object-cover" />
+        <span class="text-sm text-white/90">{{ userStore.nickname }}</span>
       </div>
-      <Button
+      <button
         v-else
-        variant="glass"
-        size="sm"
-        rounded="lg"
-        class="gap-1.5 px-3.5 py-1.5"
+        class="glass-button flex items-center gap-1 px-3 py-2 text-sm text-white"
         @click="showLogin = true"
       >
-        <span class="icon-[ic--baseline-person-pin] h-4 w-4"></span>
+        <icon-ic:baseline-person-pin />
         {{ t('auth.login') }}
-      </Button>
+      </button>
 
       <!-- 移动端菜单按钮 -->
-      <Button variant="ghost" size="icon-md" rounded="lg" class="md:hidden">
-        <span class="icon-[mdi--menu] text-primary h-5 w-5"></span>
-      </Button>
+      <button class="glass-button p-2 md:hidden">
+        <span class="icon-[mdi--menu] h-5 w-5 text-white"></span>
+      </button>
     </div>
   </header>
   <LoginDialog v-if="showLogin" @close="showLogin = false" />
 </template>
-
-<style scoped>
-@reference "../style/tailwind.css";
-
-/* 外链标签响应式隐藏 */
-@media (max-width: 1440px) {
-  .link-label {
-    display: none;
-  }
-  .nav-ext-link {
-    @apply px-1.5;
-  }
-}
-
-/* 搜索清除按钮动画 */
-.fade-scale-enter-active,
-.fade-scale-leave-active {
-  transition:
-    opacity 0.15s,
-    transform 0.15s;
-}
-.fade-scale-enter-from,
-.fade-scale-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
-/* 历史下拉动画 */
-.dropdown-enter-active {
-  transition:
-    opacity 0.2s,
-    transform 0.2s;
-}
-.dropdown-leave-active {
-  transition:
-    opacity 0.15s,
-    transform 0.15s;
-}
-.dropdown-enter-from {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.97);
-}
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-</style>
+const { t } = useI18n()

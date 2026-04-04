@@ -16,7 +16,7 @@ const state = reactive({
   lyricsOriginal: [] as RawLyricLine[],
   lyricsTrans: [] as RawLyricLine[],
   lyricsRoma: [] as RawLyricLine[],
-  showTrans: true,
+  showTrans: false,
   showRoma: false,
 })
 const lastId = ref<string | number | null>(null)

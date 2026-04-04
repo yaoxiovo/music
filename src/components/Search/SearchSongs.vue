@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { cloudSearch } from '@/api'
-import { useAudio } from '@/composables/useAudio'
-import { transformSearchSongs, type SongData } from '@/utils/transformers'
 
 interface Props {
   keywords: string
@@ -14,22 +12,22 @@ const emit = defineEmits<{
   (e: 'total', count: number): void
 }>()
 
+interface SongResult {
+  id: number | string
+  name: string
+  artist: string
+  album: string
+  albumId?: number | string
+  duration: number
+  cover: string
+}
+
 interface SongsState {
-  results: SongData[]
-  isLoading: boolean
+  results: SongResult[]
 }
 
-const state = reactive<SongsState>({ results: [], isLoading: false })
-const { results, isLoading } = toRefs(state)
-
-const { setPlaylist, play } = useAudio()
-
-const playAll = () => {
-  if (state.results.length === 0) return
-  const playlist = state.results
-  setPlaylist(playlist, 0)
-  play(playlist[0], 0)
-}
+const state = reactive<SongsState>({ results: [] })
+const { results } = toRefs(state)
 
 const fetchSongs = async () => {
   const term = props.keywords?.trim()
@@ -37,21 +35,26 @@ const fetchSongs = async () => {
     state.results = []
     return
   }
-  state.isLoading = true
-  try {
-    const res = await cloudSearch({
-      keywords: term,
-      type: 1,
-      limit: props.limit ?? 40,
-      offset: props.offset ?? 0,
-    })
-    const { songs, total } = transformSearchSongs(res as Record<string, unknown>)
-    state.results = songs
-    emit('loaded', state.results.length)
-    emit('total', total)
-  } finally {
-    state.isLoading = false
-  }
+  const res: any = await cloudSearch({
+    keywords: term,
+    type: 1,
+    limit: props.limit ?? 40,
+    offset: props.offset ?? 0,
+  })
+  const list: any[] = res?.result?.songs || []
+  state.results = list.map(it => ({
+    id: it?.id,
+    name: it?.name || '',
+    artist: Array.isArray(it?.artists || it?.ar)
+      ? (it?.artists || it?.ar).map((a: any) => a.name).join(' / ')
+      : '',
+    album: it?.album?.name || it?.al?.name || '',
+    albumId: it?.album?.id || it?.al?.id,
+    duration: it?.duration ?? it?.dt ?? 0,
+    cover: it?.album?.picUrl || it?.al?.picUrl || '',
+  }))
+  emit('loaded', state.results.length)
+  emit('total', Number(res?.result?.songCount ?? state.results.length))
 }
 
 watch(
@@ -61,19 +64,7 @@ watch(
   },
   { immediate: true }
 )
-
-defineExpose({
-  playAll,
-})
 </script>
 <template>
-  <div class="flex h-full flex-col overflow-hidden">
-    <SongList
-      :songs="results"
-      :loading="isLoading"
-      :showHeader="true"
-      :showControls="false"
-      :emptyMessage="$t('components.songList.empty')"
-    />
-  </div>
+  <SongList :songs="results" :showHeader="true" :showControls="false" :emptyMessage="$t('components.songList.empty')" />
 </template>

@@ -1,14 +1,9 @@
 <script setup lang="ts">
-import TabGroup from '@/components/Ui/TabGroup.vue'
-import { useI18n } from 'vue-i18n'
-
-const { t } = useI18n()
-
 const tabs = [
-  { key: 'all', labelKey: 'likes.tabs.all', icon: 'icon-[mdi--heart]' },
-  { key: 'song', labelKey: 'likes.tabs.song', icon: 'icon-[mdi--music]' },
-  { key: 'playlist', labelKey: 'likes.tabs.playlist', icon: 'icon-[mdi--playlist-music]' },
-  { key: 'mv', labelKey: 'likes.tabs.mv', icon: 'icon-[mdi--video]' },
+  { key: 'all', label: '全部', emoji: '❤️' },
+  { key: 'song', label: '歌曲', emoji: '🎵' },
+  { key: 'playlist', label: '歌单', emoji: '📜' },
+  { key: 'mv', label: 'MV', emoji: '🎬' },
 ]
 
 const state = reactive({
@@ -70,20 +65,25 @@ const filtered = computed(() =>
       <PageSkeleton v-if="state.isPageLoading" :sections="['list']" :list-count="12" />
       <template v-else>
       <div class="mb-8">
-        <div class="glass-container relative overflow-hidden rounded-3xl p-6">
+        <div class="relative overflow-hidden rounded-2xl bg-black/30 p-6 backdrop-blur">
           <div class="shimmer absolute inset-0"></div>
-          <div class="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div class="relative z-10 flex items-center justify-between">
             <div>
-              <h1 class="text-3xl font-bold text-primary">{{ t('likes.title') }}</h1>
-              <p class="mt-1 text-sm text-primary/70">{{ t('likes.subtitle') }}</p>
+              <h1 class="text-3xl font-bold text-white">我喜欢的</h1>
+              <p class="mt-1 text-sm text-white/70">把所有让你心动的音乐收藏在这里</p>
             </div>
-            <TabGroup
-              v-model="active"
-              :tabs="tabs"
-              variant="gradient"
-              size="sm"
-              :show-count="false"
-            />
+            <div class="hidden gap-2 md:flex">
+              <div
+                v-for="t in tabs"
+                :key="t.key"
+                class="glass-button flex items-center gap-2 px-4 py-2 text-white"
+                :class="active === t.key ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'"
+                @click="active = t.key"
+              >
+                <span>{{ t.emoji }}</span>
+                <span class="text-sm">{{ t.label }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -117,7 +117,7 @@ const filtered = computed(() =>
                 <button
                   class="glass-button flex h-10 w-10 items-center justify-center rounded-full bg-white/20 opacity-0 transition-all duration-300 group-hover:opacity-100"
                 >
-                  <span class="icon-[mdi--play] h-5 w-5 text-primary"></span>
+                  <span class="icon-[mdi--play] h-5 w-5 text-white"></span>
                 </button>
               </div>
             </div>
@@ -125,14 +125,14 @@ const filtered = computed(() =>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span
-                  class="inline-flex items-center rounded-full bg-white/10 px-2 py-0.5 text-xs text-primary"
+                  class="inline-flex items-center rounded-full bg-white/10 px-2 py-0.5 text-xs text-white"
                 >
                   {{ item.type.toUpperCase() }}
                 </span>
                 <span class="text-xs text-purple-300">{{ item.time }}</span>
               </div>
               <h3
-                class="mt-1 truncate text-base font-semibold text-primary group-hover:text-pink-300"
+                class="mt-1 truncate text-base font-semibold text-white group-hover:text-pink-300"
               >
                 {{ item.name }}
               </h3>
@@ -142,10 +142,10 @@ const filtered = computed(() =>
             <div
               class="flex shrink-0 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100"
             >
-              <button class="text-pink-400 transition-colors hover:text-primary">
+              <button class="text-pink-400 transition-colors hover:text-white">
                 <span class="icon-[mdi--heart] h-5 w-5"></span>
               </button>
-              <button class="text-purple-300 transition-colors hover:text-primary">
+              <button class="text-purple-300 transition-colors hover:text-white">
                 <span class="icon-[mdi--dots-horizontal] h-5 w-5"></span>
               </button>
             </div>

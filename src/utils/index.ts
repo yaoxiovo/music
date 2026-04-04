@@ -9,5 +9,3 @@ export function getBrowserLang(): string {
   if (['ja', 'ja-jp'].includes(l)) return 'ja'
   return 'en'
 }
-
-export * from './transformers'

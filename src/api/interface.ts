@@ -12,6 +12,8 @@ export interface BannerItem {
   title: string
   // 描述文案
   description: string
+  // Tailwind 渐变类名
+  gradient: string
   // 封面地址
   coverImgUrl: string
   // 跳转链接
@@ -23,16 +25,14 @@ export interface PlaylistItem {
   id: number | string
   // 歌单名称
   name: string
-  // 播放量
-  count: number
   // 曲目数量
-  trackCount?: number
+  count: number
+  // 表情图标
+  emoji: string
+  // Tailwind 渐变类名
+  gradient: string
   // 封面地址
   coverImgUrl: string
-  // 创建者名称
-  creatorName?: string
-  // 描述
-  description?: string
 }
 
 export interface SongItem {
@@ -42,12 +42,8 @@ export interface SongItem {
   name: string
   // 艺术家名（已拼接）
   artist: string
-  // 艺术家ID
-  artistId?: number | string
   // 专辑名
   album: string
-  // 专辑ID
-  albumId?: number | string
   // 时长（毫秒）
   duration: number
   // 表情图标

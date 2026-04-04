@@ -15,24 +15,14 @@ const { showLogin } = toRefs(state)
 <template>
   <header class="glass-nav flex items-center justify-between px-3 py-2">
     <div class="flex items-center gap-2">
-      <router-link to="/" class="flex items-center gap-2">
-        <img src="/logo.svg" alt="logo" class="w-9 rounded" />
-        <h1 class="text-primary text-base font-semibold">Glass Music Player</h1>
-      </router-link>
+      <img src="/logo.png" alt="logo" class="w-9 rounded" />
+      <h1 class="text-base font-semibold text-primary">Glass Music Player</h1>
     </div>
     <div class="flex items-center gap-2">
-      <button
-        class="hover:bg-hover-glass rounded-md p-2"
-        :title="t('common.search.label')"
-        @click="goSearch"
-      >
+      <button class="rounded-md p-2 hover:bg-hover-glass" :title="t('common.search.label')" @click="goSearch">
         <span class="icon-[mdi--magnify] h-5 w-5"></span>
       </button>
-      <button
-        class="hover:bg-hover-glass rounded-md p-2"
-        :title="t('auth.login')"
-        @click="showLogin = true"
-      >
+      <button class="rounded-md p-2 hover:bg-hover-glass" :title="t('auth.login')" @click="showLogin = true">
         <span class="icon-[mdi--account] h-5 w-5"></span>
       </button>
     </div>
