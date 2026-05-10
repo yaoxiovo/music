@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 type Track = {
   title: string
@@ -39,7 +39,6 @@ const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 const volume = ref(0.72)
-const isReady = ref(false)
 
 const currentTrack = computed(() => tracks[currentIndex.value])
 const progress = computed(() => (duration.value ? (currentTime.value / duration.value) * 100 : 0))
@@ -208,7 +207,7 @@ onBeforeUnmount(() => {
     <audio
       ref="audio"
       preload="metadata"
-      @loadedmetadata="duration = audio?.duration || 0; isReady = true"
+      @loadedmetadata="duration = audio?.duration || 0"
       @timeupdate="currentTime = audio?.currentTime || 0"
       @ended="next"
       @play="isPlaying = true"
